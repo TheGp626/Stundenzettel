@@ -507,13 +507,7 @@ function initShiftSig(dayIdx, shiftIdx) {
     shiftSigLast[key]=p; shiftSigData[key]=canvas.toDataURL();
     var ph2=document.getElementById('sigph-'+key); if(ph2) ph2.style.display='none';
   });
-  canvas.addEventListener('pointerup', function(e){
-    shiftSigDrawing[key]=false;
-    if (canvas.releasePointerCapture) {
-      try { canvas.releasePointerCapture(e.pointerId); } catch(_) {}
-    }
-    shiftSigData[key]=canvas.toDataURL();
-  });
+  canvas.addEventListener('pointerup', function(){ shiftSigDrawing[key]=false; shiftSigData[key]=canvas.toDataURL(); });
   canvas.addEventListener('pointerleave', function(){ shiftSigDrawing[key]=false; });
   canvas.addEventListener('pointercancel', function(){ shiftSigDrawing[key]=false; });
 }
@@ -612,20 +606,19 @@ async function exportPDF() {
     var firstSig = null;
     for (var si=0; si<activeShifts.length; si++) { if(activeShifts[si].sig){ firstSig=activeShifts[si].sig; break; } }
 
-    var dayRows = activeShifts.length;
-    var dayHeight = dayRows * 10;
-    if (y + dayHeight > 268) {
-      doc.addPage();
-      y = 20;
-      doc.setFillColor(30,30,28); doc.rect(ml,y,cw,8,'F');
-      doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica','bold');
-      var hcx=ml+2;
-      headers.forEach(function(h,i){ doc.text(h,hcx,y+5.5); hcx+=cols[i]; });
-      doc.setTextColor(0); y+=8;
-    }
-
     var rowStartY = y;
-    for (var row = 0; row < dayRows; row++) {
+    for (var row = 0; row < activeShifts.length; row++) {
+      if (y > 268) {
+        doc.addPage();
+        y = 20;
+        doc.setFillColor(30,30,28); doc.rect(ml,y,cw,8,'F');
+        doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica','bold');
+        var hcx=ml+2;
+        headers.forEach(function(h,i){ doc.text(h,hcx,y+5.5); hcx+=cols[i]; });
+        doc.setTextColor(0); y+=8;
+        rowStartY = y;
+      }
+
       if (idx%2===0){ doc.setFillColor(248,248,246); doc.rect(ml,y,cw,10,'F'); }
       cx = ml+2;
       if (row === 0) {
@@ -650,7 +643,10 @@ async function exportPDF() {
 
     if (firstSig) {
       var sigX = ml+2+cols[0]+cols[1]+cols[2]+cols[3]+cols[4]+cols[5];
-      try { doc.addImage(firstSig,'PNG',sigX,rowStartY+1,28,8); } catch(e) {}
+      var sigY = rowStartY + 1;
+      var maxSigY = y - 9;
+      if (sigY > maxSigY) sigY = maxSigY;
+      try { doc.addImage(firstSig,'PNG',sigX,sigY,28,8); } catch(e) {}
     }
   }
 
