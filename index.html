@@ -94,10 +94,11 @@ input[type=time]:focus{outline:2px solid var(--accent);outline-offset:-1px}
 
 /* SIG */
 .sig-wrap{position:relative;border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden;background:var(--bg);height:110px}
-.sig-wrap canvas{position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;pointer-events:auto;display:block}
+.sig-wrap canvas{position:absolute;top:0;left:0;width:100%;height:100%;touch-action:manipulation;pointer-events:none;display:block}
 .sig-placeholder{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;color:var(--text3);pointer-events:none;white-space:nowrap}
 .sig-clear{position:absolute;top:8px;right:8px;font-size:12px;color:var(--text3);background:var(--bg2);border:0.5px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;z-index:2}
-.sig-open{position:absolute;bottom:8px;right:8px;font-size:12px;color:#fff;background:var(--accent);border:0;border-radius:6px;padding:5px 8px;cursor:pointer;z-index:2}
+.sig-full-btn{margin-top:8px;width:100%;padding:9px 10px;border:0.5px solid var(--accent);border-radius:8px;background:var(--accent-bg);color:var(--accent-text);font-size:13px;font-weight:600;cursor:pointer}
+.sig-full-btn:active{opacity:.85}
 
 /* TOTAL */
 .total-bar{background:var(--accent-bg);border-radius:var(--radius-lg);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;margin:20px 0 16px;border:0.5px solid var(--accent)}
@@ -171,7 +172,7 @@ input[type=time]:focus{outline:2px solid var(--accent);outline-offset:-1px}
   </div>
 
   <div class="section-label">Arbeitstage</div>
-  <div style="font-size:12px;color:var(--text2);margin:-2px 0 8px">Tag aufklappen → dann auf <b>🖊️ Vollbild-Unterschrift öffnen</b> tippen</div>
+  <div style="font-size:12px;color:var(--text2);margin:-2px 0 8px">Tag aufklappen → Button „🖊️ Vollbild-Unterschrift öffnen“ drücken</div>
   <div id="days-container"></div>
 
   <div class="total-bar">
@@ -223,7 +224,6 @@ input[type=time]:focus{outline:2px solid var(--accent);outline-offset:-1px}
     </div>
   </div>
 </div>
-
 
 <script>
 var DAYS = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
@@ -371,11 +371,13 @@ function renderShift(dayIdx, shiftIdx) {
       +'<div class="pause-badge" id="pbadge-'+dayIdx+'-'+shiftIdx+'">wird automatisch berechnet</div>'
       +'<input type="hidden" id="pause-'+dayIdx+'-'+shiftIdx+'" value="0"/></div>'
     +'<div class="field"><label>Unterschrift AL</label>'
-      +'<div class="sig-wrap" data-day="'+dayIdx+'" data-shift="'+shiftIdx+'">'+
+      +'<button class="sig-full-btn" type="button" onclick="openSignaturePad('+dayIdx+','+shiftIdx+')">🖊️ Vollbild-Unterschrift öffnen</button>'
+      +'<div class="sig-wrap" data-day="'+dayIdx+'" data-shift="'+shiftIdx+'" onclick="openSignaturePad('+dayIdx+','+shiftIdx+')">'
         +'<canvas id="sigc-'+dayIdx+'-'+shiftIdx+'"></canvas>'
-        +'<div class="sig-placeholder" id="sigph-'+dayIdx+'-'+shiftIdx+'">Hier unterschreiben</div>'
-        +'<button class="sig-clear" onclick="event.stopPropagation();clearShiftSig('+dayIdx+','+shiftIdx+')">löschen</button>'
-      +'</div></div>';
+        +'<div class="sig-placeholder" id="sigph-'+dayIdx+'-'+shiftIdx+'">Tippen für Unterschrift (Vollbild)</div>'
+        +'<button class="sig-clear" type="button" data-day="'+dayIdx+'" data-shift="'+shiftIdx+'" onclick="event.stopPropagation();clearShiftSig('+dayIdx+','+shiftIdx+')">löschen</button>'
+      +'</div>'
+    +'</div>';
 
   container.appendChild(block);
   setTimeout(function(){ initShiftSig(dayIdx, shiftIdx); }, 0);
@@ -506,27 +508,16 @@ document.getElementById('chips-abt').addEventListener('click', function(e) {
 
 document.getElementById('inp-week').addEventListener('change', buildDays);
 
-// delegated handlers so tap works reliably on webviews/PWA
-var daysContainer = document.getElementById('days-container');
-daysContainer.addEventListener('click', function(e){
-  var clearBtn = e.target.closest('.sig-clear');
-  if (clearBtn) {
-    var cd = parseInt(clearBtn.getAttribute('data-day'),10);
-    var cs = parseInt(clearBtn.getAttribute('data-shift'),10);
-    if (!isNaN(cd) && !isNaN(cs)) clearShiftSig(cd, cs);
-    return;
-  }
-});
+// Signature opening is handled directly on each .sig-wrap and fallback button.
 
-// ---- SIGNATURE ----
+// ---- SIGNATURE (day-level, kept for compat) ----
 var shiftSigCanvases = {}, shiftSigDrawing = {}, shiftSigLast = {}, shiftSigData = {};
 var sigModalState = { key:null, drawing:false, last:null, hasInk:false };
 
 function initShiftSig(dayIdx, shiftIdx) {
   var key = dayIdx+'-'+shiftIdx;
   var canvas = document.getElementById('sigc-'+key);
-  if (!canvas) return;
-  if (shiftSigCanvases[key] && shiftSigCanvases[key]._ready && shiftSigCanvases[key].w > 0) return;
+  if (!canvas || (shiftSigCanvases[key] && shiftSigCanvases[key]._ready)) return;
 
   var dpr = window.devicePixelRatio||1;
   var pw = canvas.parentElement.offsetWidth||300;
@@ -540,14 +531,6 @@ function initShiftSig(dayIdx, shiftIdx) {
   ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   shiftSigCanvases[key] = {canvas:canvas, ctx:ctx, w:pw, h:ph, _ready:true};
 
-  // restore existing sig if any
-  if (shiftSigData[key]) {
-    var img = new Image();
-    img.onload = function(){ ctx.drawImage(img,0,0,pw,ph); };
-    img.src = shiftSigData[key];
-    var ph2 = document.getElementById('sigph-'+key); if(ph2) ph2.style.display='none';
-  }
-
   redrawShiftSig(key);
 }
 
@@ -560,34 +543,108 @@ function redrawShiftSig(key) {
     img.onload = function(){ sc.ctx.drawImage(img,0,0,sc.w,sc.h); };
     img.src = shiftSigData[key];
   }
-  canvas.addEventListener('pointerdown', function(e){
-    shiftSigDrawing[key]=true;
-    shiftSigLast[key]=getPos(e);
-    if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+  var ph = document.getElementById('sigph-'+key);
+  if (ph) ph.style.display = shiftSigData[key] ? 'none' : '';
+}
+
+function initSigModalCanvas() {
+  var c = document.getElementById('sig-modal-canvas');
+  var dpr = window.devicePixelRatio||1;
+  var w = c.parentElement.clientWidth;
+  var h = c.parentElement.clientHeight;
+  c.width = w*dpr; c.height = h*dpr;
+  c.style.width = w+'px'; c.style.height = h+'px';
+  var ctx = c.getContext('2d');
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.scale(dpr,dpr);
+  ctx.strokeStyle = '#1a1a18';
+  ctx.lineWidth = 2.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  return {canvas:c,ctx:ctx,w:w,h:h};
+}
+
+function openSignaturePad(dayIdx, shiftIdx) {
+  var key = dayIdx+'-'+shiftIdx;
+  sigModalState.key = key;
+  sigModalState.drawing = false;
+  sigModalState.last = null;
+  sigModalState.hasInk = !!shiftSigData[key];
+
+  var sub = document.getElementById('sig-modal-sub');
+  if (sub) sub.textContent = DAYS[dayIdx]+' · Schicht '+(shiftIdx+1)+' · Querformat empfohlen';
+
+  var modal = document.getElementById('sig-modal');
+  modal.classList.add('open');
+
+  if (modal.requestFullscreen) { try { modal.requestFullscreen(); } catch(_) {} }
+  if (screen.orientation && screen.orientation.lock) { try { screen.orientation.lock('landscape'); } catch(_) {} }
+
+  var pad = initSigModalCanvas();
+  if (shiftSigData[key]) {
+    var img = new Image();
+    img.onload = function(){ pad.ctx.drawImage(img,0,0,pad.w,pad.h); };
+    img.src = shiftSigData[key];
+  }
+}
+
+function sigModalPos(e, c) {
+  var r = c.getBoundingClientRect();
+  return [e.clientX-r.left, e.clientY-r.top];
+}
+
+(function bindSigModalEvents(){
+  var c = document.getElementById('sig-modal-canvas');
+  if (!c) return;
+
+  c.addEventListener('pointerdown', function(e){
+    sigModalState.drawing = true;
+    sigModalState.last = sigModalPos(e,c);
+    if (c.setPointerCapture) c.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
-  canvas.addEventListener('pointermove', function(e){
-    if (!shiftSigDrawing[key]) return;
-    e.preventDefault();
-    var p=getPos(e), l=shiftSigLast[key];
+  c.addEventListener('pointermove', function(e){
+    if (!sigModalState.drawing) return;
+    var ctx = c.getContext('2d');
+    var p = sigModalPos(e,c), l = sigModalState.last;
     ctx.beginPath(); ctx.moveTo(l[0],l[1]); ctx.lineTo(p[0],p[1]); ctx.stroke();
-    shiftSigLast[key]=p;
-    var ph3=document.getElementById('sigph-'+key); if(ph3) ph3.style.display='none';
+    sigModalState.last = p;
+    sigModalState.hasInk = true;
+    e.preventDefault();
   });
-  canvas.addEventListener('pointerup', function(){
-    shiftSigDrawing[key]=false;
-    shiftSigData[key]=canvas.toDataURL();
+  c.addEventListener('pointerup', function(e){
+    sigModalState.drawing = false;
+    if (c.releasePointerCapture) { try { c.releasePointerCapture(e.pointerId); } catch(_) {} }
   });
-  canvas.addEventListener('pointerleave', function(){ shiftSigDrawing[key]=false; });
-  canvas.addEventListener('pointercancel', function(){ shiftSigDrawing[key]=false; });
+  c.addEventListener('pointercancel', function(){ sigModalState.drawing = false; });
+})();
+
+function clearSigModal() {
+  var c = document.getElementById('sig-modal-canvas');
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  sigModalState.hasInk = false;
+}
+
+function saveSigModal() {
+  var key = sigModalState.key;
+  if (!key) return closeSigModal();
+  var c = document.getElementById('sig-modal-canvas');
+  shiftSigData[key] = sigModalState.hasInk ? c.toDataURL() : null;
+  redrawShiftSig(key);
+  closeSigModal();
+}
+
+function closeSigModal() {
+  var modal = document.getElementById('sig-modal');
+  modal.classList.remove('open');
+  if (document.fullscreenElement && document.exitFullscreen) { document.exitFullscreen().catch(function(){}); }
+  if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch(_) {} }
+  sigModalState.key = null;
 }
 
 function clearShiftSig(dayIdx, shiftIdx) {
   var key = dayIdx+'-'+shiftIdx;
   shiftSigData[key] = null;
-  var sc = shiftSigCanvases[key];
-  if (sc) sc.ctx.clearRect(0,0,sc.w,sc.h);
-  var ph = document.getElementById('sigph-'+key); if(ph) ph.style.display='';
+  redrawShiftSig(key);
 }
 
 // legacy day-level sig (no longer rendered but kept so old saves don't break)
@@ -676,19 +733,20 @@ async function exportPDF() {
     var firstSig = null;
     for (var si=0; si<activeShifts.length; si++) { if(activeShifts[si].sig){ firstSig=activeShifts[si].sig; break; } }
 
-    var rowStartY = y;
-    for (var row = 0; row < activeShifts.length; row++) {
-      if (y > 268) {
-        doc.addPage();
-        y = 20;
-        doc.setFillColor(30,30,28); doc.rect(ml,y,cw,8,'F');
-        doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica','bold');
-        var hcx=ml+2;
-        headers.forEach(function(h,i){ doc.text(h,hcx,y+5.5); hcx+=cols[i]; });
-        doc.setTextColor(0); y+=8;
-        rowStartY = y;
-      }
+    var dayRows = activeShifts.length;
+    var dayHeight = dayRows * 10;
+    if (y + dayHeight > 268) {
+      doc.addPage();
+      y = 20;
+      doc.setFillColor(30,30,28); doc.rect(ml,y,cw,8,'F');
+      doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica','bold');
+      var hcx=ml+2;
+      headers.forEach(function(h,i){ doc.text(h,hcx,y+5.5); hcx+=cols[i]; });
+      doc.setTextColor(0); y+=8;
+    }
 
+    var rowStartY = y;
+    for (var row = 0; row < dayRows; row++) {
       if (idx%2===0){ doc.setFillColor(248,248,246); doc.rect(ml,y,cw,10,'F'); }
       cx = ml+2;
       if (row === 0) {
@@ -707,16 +765,12 @@ async function exportPDF() {
       if (row === 0) {
         doc.setFont('helvetica','normal'); doc.text(dd.al||'',cx,y+5.5);
       }
+      cx += cols[6];
+      if (row === 0 && firstSig) {
+        try { doc.addImage(firstSig,'PNG',cx,y+1,28,8); } catch(e) {}
+      }
       doc.setDrawColor(220); doc.line(ml,y+10,ml+cw,y+10);
       y += 10;
-    }
-
-    if (firstSig) {
-      var sigX = ml+2+cols[0]+cols[1]+cols[2]+cols[3]+cols[4]+cols[5];
-      var sigY = rowStartY + 1;
-      var maxSigY = y - 9;
-      if (sigY > maxSigY) sigY = maxSigY;
-      try { doc.addImage(firstSig,'PNG',sigX,sigY,28,8); } catch(e) {}
     }
   }
 
@@ -772,7 +826,7 @@ function loadWeek(key) {
         if (sh.sig) {
           var key2=i+'-'+s;
           shiftSigData[key2]=sh.sig;
-          // canvas will be drawn when initShiftSig runs on toggleDay
+          redrawShiftSig(key2);
         }
       });
 
@@ -810,7 +864,27 @@ document.getElementById('inp-name').addEventListener('blur',function(e){
 buildDays();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').then(function(reg){reg.update();}).catch(function(){});
+  navigator.serviceWorker.register('sw.js').then(function(reg){
+    reg.update();
+
+    if (reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
+    reg.addEventListener('updatefound', function(){
+      var nw = reg.installing;
+      if (!nw) return;
+      nw.addEventListener('statechange', function(){
+        if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+          nw.postMessage({type:'SKIP_WAITING'});
+        }
+      });
+    });
+
+    var reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function(){
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    });
+  }).catch(function(){});
 }
 </script>
 </body>
