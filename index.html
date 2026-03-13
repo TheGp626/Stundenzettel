@@ -550,16 +550,28 @@ function redrawShiftSig(key) {
 function initSigModalCanvas() {
   var c = document.getElementById('sig-modal-canvas');
   var dpr = window.devicePixelRatio||1;
-  var w = c.parentElement.clientWidth;
-  var h = c.parentElement.clientHeight;
+  var rect = c.parentElement.getBoundingClientRect();
+  var w = Math.max(1, Math.round(rect.width));
+  var h = Math.max(1, Math.round(rect.height));
   c.width = w*dpr; c.height = h*dpr;
-  c.style.width = w+'px'; c.style.height = h+'px';
+  c.style.width = '100%'; c.style.height = '100%';
   var ctx = c.getContext('2d');
   ctx.setTransform(1,0,0,1,0,0);
   ctx.scale(dpr,dpr);
   ctx.strokeStyle = '#1a1a18';
   ctx.lineWidth = 2.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   return {canvas:c,ctx:ctx,w:w,h:h};
+}
+
+function redrawSigModalFromState() {
+  var key = sigModalState.key;
+  if (!key) return;
+  var pad = initSigModalCanvas();
+  if (shiftSigData[key]) {
+    var img = new Image();
+    img.onload = function(){ pad.ctx.drawImage(img,0,0,pad.w,pad.h); };
+    img.src = shiftSigData[key];
+  }
 }
 
 function openSignaturePad(dayIdx, shiftIdx) {
@@ -578,12 +590,7 @@ function openSignaturePad(dayIdx, shiftIdx) {
   if (modal.requestFullscreen) { try { modal.requestFullscreen(); } catch(_) {} }
   if (screen.orientation && screen.orientation.lock) { try { screen.orientation.lock('landscape'); } catch(_) {} }
 
-  var pad = initSigModalCanvas();
-  if (shiftSigData[key]) {
-    var img = new Image();
-    img.onload = function(){ pad.ctx.drawImage(img,0,0,pad.w,pad.h); };
-    img.src = shiftSigData[key];
-  }
+  requestAnimationFrame(function(){ requestAnimationFrame(redrawSigModalFromState); });
 }
 
 function sigModalPos(e, c) {
@@ -616,6 +623,22 @@ function sigModalPos(e, c) {
   });
   c.addEventListener('pointercancel', function(){ sigModalState.drawing = false; });
 })();
+
+
+window.addEventListener('resize', function(){
+  var modal = document.getElementById('sig-modal');
+  if (modal && modal.classList.contains('open')) redrawSigModalFromState();
+});
+document.addEventListener('fullscreenchange', function(){
+  var modal = document.getElementById('sig-modal');
+  if (modal && modal.classList.contains('open')) redrawSigModalFromState();
+});
+if (screen.orientation && screen.orientation.addEventListener) {
+  screen.orientation.addEventListener('change', function(){
+    var modal = document.getElementById('sig-modal');
+    if (modal && modal.classList.contains('open')) redrawSigModalFromState();
+  });
+}
 
 function clearSigModal() {
   var c = document.getElementById('sig-modal-canvas');
