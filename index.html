@@ -433,7 +433,9 @@ function toggleDay(i) {
   var body = document.getElementById('dbody-'+i);
   var wasOpen = body.classList.contains('open');
   body.classList.toggle('open');
-  if (!wasOpen) setTimeout(function(){ initSig(i); }, 0);
+  if (!wasOpen) setTimeout(function(){
+    for (var s = 0; s < (shiftCounts[i]||1); s++) initShiftSig(i, s);
+  }, 50);
 }
 
 // ---- CALC ----
@@ -526,7 +528,8 @@ var sigModalState = { key:null, drawing:false, last:null, hasInk:false };
 function initShiftSig(dayIdx, shiftIdx) {
   var key = dayIdx+'-'+shiftIdx;
   var canvas = document.getElementById('sigc-'+key);
-  if (!canvas || (shiftSigCanvases[key] && shiftSigCanvases[key]._ready)) return;
+  if (!canvas) return;
+  if (shiftSigCanvases[key] && shiftSigCanvases[key]._ready && shiftSigCanvases[key].w > 0) return;
 
   var dpr = window.devicePixelRatio||1;
   var pw = canvas.parentElement.offsetWidth||300;
