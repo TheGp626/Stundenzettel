@@ -171,6 +171,7 @@ input[type=time]:focus{outline:2px solid var(--accent);outline-offset:-1px}
   </div>
 
   <div class="section-label">Arbeitstage</div>
+  <div style="font-size:12px;color:var(--text2);margin:-2px 0 8px">Tag aufklappen → dann auf <b>🖊️ Vollbild-Unterschrift öffnen</b> tippen</div>
   <div id="days-container"></div>
 
   <div class="total-bar">
@@ -203,6 +204,25 @@ input[type=time]:focus{outline:2px solid var(--accent);outline-offset:-1px}
 </nav>
 </div>
 <div class="toast" id="toast"></div>
+<div class="sig-modal" id="sig-modal">
+  <div class="sig-modal-inner">
+    <div class="sig-modal-head">
+      <div>
+        <div class="sig-modal-title">Unterschrift erfassen</div>
+        <div class="sig-modal-sub" id="sig-modal-sub">Querformat empfohlen</div>
+      </div>
+      <button class="theme-btn" onclick="closeSigModal()" title="Schließen">✕</button>
+    </div>
+    <div class="sig-pad-wrap">
+      <canvas id="sig-modal-canvas"></canvas>
+    </div>
+    <div class="sig-actions">
+      <button class="btn" onclick="clearSigModal()">Löschen</button>
+      <button class="btn" onclick="closeSigModal()">Abbrechen</button>
+      <button class="btn primary" onclick="saveSigModal()">Übernehmen</button>
+    </div>
+  </div>
+</div>
 
 
 <script>
@@ -500,6 +520,7 @@ daysContainer.addEventListener('click', function(e){
 
 // ---- SIGNATURE ----
 var shiftSigCanvases = {}, shiftSigDrawing = {}, shiftSigLast = {}, shiftSigData = {};
+var sigModalState = { key:null, drawing:false, last:null, hasInk:false };
 
 function initShiftSig(dayIdx, shiftIdx) {
   var key = dayIdx+'-'+shiftIdx;
@@ -515,7 +536,7 @@ function initShiftSig(dayIdx, shiftIdx) {
 
   var ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
-  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--text').trim()||'#1a1a18';
+  ctx.strokeStyle = '#1a1a18';
   ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   shiftSigCanvases[key] = {canvas:canvas, ctx:ctx, w:pw, h:ph, _ready:true};
 
@@ -527,10 +548,17 @@ function initShiftSig(dayIdx, shiftIdx) {
     var ph2 = document.getElementById('sigph-'+key); if(ph2) ph2.style.display='none';
   }
 
-  function getPos(e) {
-    var r = canvas.getBoundingClientRect();
-    var src = e.touches ? e.touches[0] : e;
-    return [src.clientX-r.left, src.clientY-r.top];
+  redrawShiftSig(key);
+}
+
+function redrawShiftSig(key) {
+  var sc = shiftSigCanvases[key];
+  if (!sc) return;
+  sc.ctx.clearRect(0,0,sc.w,sc.h);
+  if (shiftSigData[key]) {
+    var img = new Image();
+    img.onload = function(){ sc.ctx.drawImage(img,0,0,sc.w,sc.h); };
+    img.src = shiftSigData[key];
   }
   canvas.addEventListener('pointerdown', function(e){
     shiftSigDrawing[key]=true;
