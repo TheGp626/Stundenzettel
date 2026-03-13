@@ -501,6 +501,23 @@ document.getElementById('chips-abt').addEventListener('click', function(e) {
 
 document.getElementById('inp-week').addEventListener('change', buildDays);
 
+// delegated handlers so tap works reliably on webviews/PWA
+var daysContainer = document.getElementById('days-container');
+daysContainer.addEventListener('click', function(e){
+  var clearBtn = e.target.closest('.sig-clear');
+  if (clearBtn) {
+    var cd = parseInt(clearBtn.getAttribute('data-day'),10);
+    var cs = parseInt(clearBtn.getAttribute('data-shift'),10);
+    if (!isNaN(cd) && !isNaN(cs)) clearShiftSig(cd, cs);
+    return;
+  }
+  var wrap = e.target.closest('.sig-wrap');
+  if (!wrap) return;
+  var dayIdx = parseInt(wrap.getAttribute('data-day'),10);
+  var shiftIdx = parseInt(wrap.getAttribute('data-shift'),10);
+  if (!isNaN(dayIdx) && !isNaN(shiftIdx)) openSignaturePad(dayIdx, shiftIdx);
+});
+
 // ---- SIGNATURE (day-level, kept for compat) ----
 var shiftSigCanvases = {}, shiftSigDrawing = {}, shiftSigLast = {}, shiftSigData = {};
 var sigModalState = { key:null, drawing:false, last:null, hasInk:false };
@@ -779,7 +796,7 @@ document.getElementById('inp-name').addEventListener('blur',function(e){
 buildDays();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(function(){});
+  navigator.serviceWorker.register('sw.js').then(function(reg){reg.update();}).catch(function(){});
 }
 </script>
 </body>
