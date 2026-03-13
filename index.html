@@ -329,12 +329,6 @@ function buildDays() {
         +'<div class="day-body" id="dbody-'+i+'">'
           +'<div id="shifts-'+i+'"></div>'
           +'<button class="add-shift-btn" onclick="addShift('+i+')">＋ Schicht hinzufügen</button>'
-          +'<div class="day-al">'
-            +'<div class="field"><label>Ort / Venue</label>'
-              +'<input type="text" id="ort-'+i+'" placeholder="Einsatzort"/></div>'
-            +'<div class="field"><label>Name AL</label>'
-              +'<input type="text" id="al-'+i+'" placeholder="Vorname Nachname"/></div>'
-          +'</div>'
         +'</div>';
       container.appendChild(row);
 
@@ -370,6 +364,10 @@ function renderShift(dayIdx, shiftIdx) {
     +'<div class="field"><label>Pause</label>'
       +'<div class="pause-badge" id="pbadge-'+dayIdx+'-'+shiftIdx+'">wird automatisch berechnet</div>'
       +'<input type="hidden" id="pause-'+dayIdx+'-'+shiftIdx+'" value="0"/></div>'
+    +'<div class="field"><label>Ort / Venue</label>'
+      +'<input type="text" id="ort-'+dayIdx+'-'+shiftIdx+'" placeholder="Einsatzort"/></div>'
+    +'<div class="field"><label>Name AL</label>'
+      +'<input type="text" id="al-'+dayIdx+'-'+shiftIdx+'" placeholder="Vorname Nachname"/></div>'
     +'<div class="field"><label>Unterschrift AL</label>'
       +'<button class="sig-full-btn" type="button" onclick="openSignaturePad('+dayIdx+','+shiftIdx+')">🖊️ Vollbild-Unterschrift öffnen</button>'
       +'<div class="sig-wrap" data-day="'+dayIdx+'" data-shift="'+shiftIdx+'" onclick="openSignaturePad('+dayIdx+','+shiftIdx+')">'
@@ -403,6 +401,8 @@ function removeShift(dayIdx, shiftIdx) {
       von: vonEl.value || '',
       bis: bisEl.value || '',
       pause: (pauseEl && pauseEl.value) || '0',
+      ort: (document.getElementById('ort-'+key)||{}).value || '',
+      al: (document.getElementById('al-'+key)||{}).value || '',
       sig: shiftSigData[key] || null
     });
   }
@@ -418,6 +418,8 @@ function removeShift(dayIdx, shiftIdx) {
       var vEl = document.getElementById('von-'+key); if (vEl) vEl.value = sh.von;
       var bEl = document.getElementById('bis-'+key); if (bEl) bEl.value = sh.bis;
       var pEl = document.getElementById('pause-'+key); if (pEl) pEl.value = sh.pause;
+      var oEl = document.getElementById('ort-'+key); if (oEl) oEl.value = sh.ort || '';
+      var aEl = document.getElementById('al-'+key); if (aEl) aEl.value = sh.al || '';
       if (sh.sig) {
         shiftSigData[key] = sh.sig;
         var sc = shiftSigCanvases[key];
@@ -687,14 +689,14 @@ function collectData() {
         von:(document.getElementById('von-'+key)||{}).value||'',
         bis:(document.getElementById('bis-'+key)||{}).value||'',
         pause:(document.getElementById('pause-'+key)||{value:'0'}).value||'0',
+        ort:(document.getElementById('ort-'+key)||{}).value||'',
+        al:(document.getElementById('al-'+key)||{}).value||'',
         sig:shiftSigData[key]||null
       });
     }
     return {
       day:day, date:fmtDateFull(d),
-      ort:(document.getElementById('ort-'+i)||{}).value||'',
-      shifts:shifts,
-      al:(document.getElementById('al-'+i)||{}).value||''
+      shifts:shifts
     };
   });
   return {
@@ -733,7 +735,7 @@ async function exportPDF() {
   doc.setFont('helvetica','bold'); doc.text(data.weekLabel,ml+18,46);
 
   var y=56;
-  var cols=[28,22,16,16,18,10,28,32];
+  var cols=[36,18,14,14,16,10,24,38];
   var headers=['Tag / Datum','Einsatzort','Von','Bis','Pause','Std','Name AL','Unterschrift AL'];
   doc.setFillColor(30,30,28); doc.rect(ml,y,cw,8,'F');
   doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica','bold');
@@ -753,8 +755,6 @@ async function exportPDF() {
     });
     var hrsStr = dayNet%1===0 ? dayNet.toFixed(0) : dayNet.toFixed(2);
 
-    var firstSig = null;
-    for (var si=0; si<activeShifts.length; si++) { if(activeShifts[si].sig){ firstSig=activeShifts[si].sig; break; } }
 
     var dayRows = activeShifts.length;
     var dayHeight = dayRows * 10;
@@ -777,7 +777,7 @@ async function exportPDF() {
       }
       cx += cols[0];
       doc.setFont('helvetica','normal');
-      if (row === 0) doc.text(dd.ort||'',cx,y+5.5);
+      doc.text((activeShifts[row].ort||''),cx,y+5.5);
       cx += cols[1];
       doc.text(activeShifts[row].von+' – '+activeShifts[row].bis,cx,y+5.5); cx += cols[2]+cols[3];
       doc.text(parseInt(activeShifts[row].pause)>0 ? activeShifts[row].pause+' min' : '—',cx,y+5.5); cx += cols[4];
@@ -785,12 +785,10 @@ async function exportPDF() {
         doc.setFont('helvetica','bold'); doc.text(hrsStr+'h',cx,y+5.5);
       }
       cx += cols[5];
-      if (row === 0) {
-        doc.setFont('helvetica','normal'); doc.text(dd.al||'',cx,y+5.5);
-      }
+      doc.setFont('helvetica','normal'); doc.text((activeShifts[row].al||''),cx,y+5.5);
       cx += cols[6];
-      if (row === 0 && firstSig) {
-        try { doc.addImage(firstSig,'PNG',cx,y+1,28,8); } catch(e) {}
+      if (activeShifts[row].sig) {
+        try { doc.addImage(activeShifts[row].sig,'PNG',cx,y+1,28,8); } catch(e) {}
       }
       doc.setDrawColor(220); doc.line(ml,y+10,ml+cw,y+10);
       y += 10;
@@ -837,15 +835,14 @@ function loadWeek(key) {
   buildDays();
   setTimeout(function(){
     w.days.forEach(function(d,i){
-      var ortEl = document.getElementById('ort-'+i); if(ortEl) ortEl.value=d.ort||'';
-      var alEl = document.getElementById('al-'+i); if(alEl) alEl.value=d.al||'';
-
-      var shifts = d.shifts || [{von:d.von||'',bis:d.bis||'',pause:d.pause||'0',sig:d.sig||null}];
+      var shifts = d.shifts || [{von:d.von||'',bis:d.bis||'',pause:d.pause||'0',ort:d.ort||'',al:d.al||'',sig:d.sig||null}];
       for (var s=1; s<shifts.length; s++) addShift(i);
 
       shifts.forEach(function(sh,s){
         var vEl=document.getElementById('von-'+i+'-'+s); if(vEl) vEl.value=sh.von||'';
         var bEl=document.getElementById('bis-'+i+'-'+s); if(bEl) bEl.value=sh.bis||'';
+        var oEl=document.getElementById('ort-'+i+'-'+s); if(oEl) oEl.value=(sh.ort || d.ort || '');
+        var aEl=document.getElementById('al-'+i+'-'+s); if(aEl) aEl.value=(sh.al || d.al || '');
         if (sh.sig) {
           var key2=i+'-'+s;
           shiftSigData[key2]=sh.sig;
