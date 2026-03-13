@@ -113,8 +113,15 @@ input[type="time"] { font-size: 16px; }
 
 /* SIGNATURE */
 .sig-wrap { border: 0.5px solid var(--border2); border-radius: var(--radius); overflow: hidden; background: var(--bg); margin-top: 6px; position: relative; }
-#sigCanvas { display: block; width: 100%; touch-action: none; }
+.sig-wrap canvas { display: block; width: 100%; touch-action: none; }
 .sig-clear { position: absolute; top: 8px; right: 8px; font-size: 12px; color: var(--text3); background: var(--bg2); border: 0.5px solid var(--border); border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+.sig-placeholder { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 13px; color: var(--text3); pointer-events: none; white-space: nowrap; }
+/* PAUSE BADGE */
+.pause-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text2); background: var(--bg3); border-radius: 99px; padding: 5px 12px; margin-top: 4px; }
+.pause-badge.auto { color: var(--accent-text); background: var(--accent-bg); }
+/* MIN HOURS WARNING */
+.min-warn { font-size: 11px; color: #BA7517; background: #FAEEDA; border-radius: 6px; padding: 4px 10px; margin-top: 4px; display: none; }
+.min-warn.show { display: block; }
 
 /* TOAST */
 .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: 99px; font-size: 13px; font-weight: 500; opacity: 0; transition: all 0.25s; pointer-events: none; white-space: nowrap; z-index: 999; }
@@ -139,8 +146,8 @@ input[type="time"] { font-size: 16px; }
   </div>
 
   <div class="field">
-    <label>Woche (Montag)</label>
-    <input type="date" id="inp-week"/>
+    <label>Kalenderwoche</label>
+    <input type="week" id="inp-week"/>
   </div>
 
   <div class="section-label">Abteilung</div>
@@ -165,12 +172,6 @@ input[type="time"] { font-size: 16px; }
       <span class="value" id="total-hours">0</span>
       <span class="unit">h</span>
     </div>
-  </div>
-
-  <div class="section-label">Unterschrift (AL)</div>
-  <div class="sig-wrap">
-    <canvas id="sigCanvas" height="120"></canvas>
-    <button class="sig-clear" onclick="clearSig()">löschen</button>
   </div>
 
   <div style="margin-top:16px">
@@ -204,7 +205,8 @@ input[type="time"] { font-size: 16px; }
 <script>
 const DAYS = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
 let selectedAbt = 'MA für Auf-/Abbau';
-let sigData = null;
+let sigData = {};
+let sigCanvases = {}, sigDrawing = {}, sigLast = {};
 
 // --- NAVIGATION ---
 function navigate(page) {
@@ -216,29 +218,73 @@ function navigate(page) {
 }
 
 // --- DATE HELPERS ---
-function getMonday(dateStr) {
-  const d = dateStr ? new Date(dateStr) : new Date();
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
+function getMonday(weekVal) {
+  // weekVal format: "2026-W11"
+  if (weekVal) {
+    const [yearStr, wStr] = weekVal.split('-W');
+    const year = parseInt(yearStr), week = parseInt(wStr);
+    // ISO week date to calendar date
+    const jan4 = new Date(year, 0, 4);
+    const jan4dow = jan4.getDay() || 7;
+    const monday = new Date(jan4.getTime() + (week - 1) * 7 * 86400000 - (jan4dow - 1) * 86400000);
+    return monday;
+  }
+  // default: current week's monday
+  const d = new Date();
+  const dow = d.getDay() || 7;
+  d.setDate(d.getDate() - (dow - 1));
+  d.setHours(0,0,0,0);
   return d;
+}
+function currentWeekVal() {
+  const d = new Date();
+  const dow = d.getDay() || 7;
+  const thursday = new Date(d.getTime() + (4 - dow) * 86400000);
+  const year = thursday.getFullYear();
+  const jan1 = new Date(year, 0, 1);
+  const jan1dow = jan1.getDay() || 7;
+  const firstThursday = new Date(jan1.getTime() + (4 - jan1dow) * 86400000);
+  const week = Math.round((thursday - firstThursday) / (7 * 86400000)) + 1;
+  return year + '-W' + String(week).padStart(2,'0');
 }
 function pad(n) { return String(n).padStart(2,'0'); }
 function fmtDate(d) { return pad(d.getDate())+'.'+pad(d.getMonth()+1); }
 function fmtDateFull(d) { return pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear(); }
-function dateKey(d) { return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
-function isoToInput(d) { return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function weekValFromDate(d) {
+  const dow = d.getDay() || 7;
+  const thursday = new Date(d.getTime() + (4 - dow) * 86400000);
+  const year = thursday.getFullYear();
+  const jan1 = new Date(year, 0, 1);
+  const jan1dow = jan1.getDay() || 7;
+  const firstThursday = new Date(jan1.getTime() + (4 - jan1dow) * 86400000);
+  const week = Math.round((thursday - firstThursday) / (7 * 86400000)) + 1;
+  return year + '-W' + String(week).padStart(2,'0');
+}
+function weekLabel(weekVal) {
+  const mon = getMonday(weekVal);
+  const sun = new Date(mon.getTime() + 6 * 86400000);
+  const [yearStr, wStr] = weekVal.split('-W');
+  return 'KW ' + parseInt(wStr) + ' · ' + fmtDateFull(mon) + ' – ' + fmtDateFull(sun);
+}
+
+// --- AUTO PAUSE ---
+function autoPause(rawMins) {
+  if (rawMins >= 9*60) return 45;
+  if (rawMins >= 6*60) return 30;
+  return 0;
+}
 
 // --- BUILD DAY ROWS ---
 function buildDays() {
   const container = document.getElementById('days-container');
   container.innerHTML = '';
+  sigCanvases = {}; sigDrawing = {}; sigLast = {}; sigData = {};
+
   const weekInput = document.getElementById('inp-week').value;
   const mon = getMonday(weekInput || undefined);
 
   DAYS.forEach((day, i) => {
     const d = new Date(mon.getTime() + i * 86400000);
-    const key = dateKey(d);
     const row = document.createElement('div');
     row.className = 'day-row';
     row.id = 'dayrow-'+i;
@@ -253,7 +299,7 @@ function buildDays() {
       <div class="day-body" id="dbody-${i}">
         <div class="field">
           <label>Einsatzort</label>
-          <input type="text" id="ort-${i}" placeholder="z.B. Estrel Berlin" oninput="calcDay(${i})"/>
+          <input type="text" id="ort-${i}" placeholder="z.B. Estrel Berlin"/>
         </div>
         <div class="time-pair">
           <div class="field">
@@ -266,22 +312,36 @@ function buildDays() {
           </div>
         </div>
         <div class="field">
-          <label>Pause (Minuten)</label>
-          <input type="number" id="pause-${i}" placeholder="0" min="0" max="120" step="15" oninput="calcDay(${i})"/>
+          <label>Pause</label>
+          <div class="pause-badge" id="pause-badge-${i}">wird automatisch berechnet</div>
+          <input type="hidden" id="pause-${i}" value="0"/>
         </div>
-        <div class="field">
+        <div class="min-warn" id="minwarn-${i}">⚠ Mindestens 3 Stunden erforderlich</div>
+        <div class="field" style="margin-top:12px">
           <label>Name AL</label>
           <input type="text" id="al-${i}" placeholder="Vorname Nachname"/>
+        </div>
+        <div class="field">
+          <label>Unterschrift AL</label>
+          <div class="sig-wrap" style="height:110px">
+            <canvas id="sigCanvas-${i}" style="width:100%;height:110px;display:block;touch-action:none"></canvas>
+            <div class="sig-placeholder" id="sigph-${i}">Hier unterschreiben</div>
+            <button class="sig-clear" onclick="clearSig(${i})">löschen</button>
+          </div>
         </div>
       </div>`;
     container.appendChild(row);
   });
+
+  setTimeout(() => DAYS.forEach((_,i) => initSigCanvas(i)), 0);
   calcTotal();
 }
 
 function toggleDay(i) {
   const body = document.getElementById('dbody-'+i);
+  const wasOpen = body.classList.contains('open');
   body.classList.toggle('open');
+  if (!wasOpen) setTimeout(() => initSigCanvas(i), 0);
 }
 
 function timeToMins(t) {
@@ -293,15 +353,45 @@ function timeToMins(t) {
 function calcDay(i) {
   const von = timeToMins(document.getElementById('von-'+i).value);
   const bis = timeToMins(document.getElementById('bis-'+i).value);
-  const pause = parseInt(document.getElementById('pause-'+i).value)||0;
   const el = document.getElementById('dh-'+i);
-  if (von!=null && bis!=null && bis>von) {
-    const h = Math.max(0,(bis-von-pause)/60);
-    el.textContent = (h%1===0?h.toFixed(0):h.toFixed(2))+'h';
-    el.className = 'day-hours';
+  const badge = document.getElementById('pause-badge-'+i);
+  const warn = document.getElementById('minwarn-'+i);
+  const pauseHid = document.getElementById('pause-'+i);
+
+  if (von != null && bis != null && bis > von) {
+    const rawMins = bis - von;
+    const pause = autoPause(rawMins);
+    const netMins = rawMins - pause;
+    const h = netMins / 60;
+    pauseHid.value = pause;
+
+    if (pause > 0) {
+      badge.textContent = pause + ' min (automatisch)';
+      badge.className = 'pause-badge auto';
+    } else {
+      badge.textContent = 'keine Pause';
+      badge.className = 'pause-badge';
+    }
+
+    if (h < 3) {
+      el.textContent = h.toFixed(2) + 'h';
+      el.className = 'day-hours';
+      el.style.color = '#BA7517';
+      warn.classList.add('show');
+    } else {
+      el.textContent = (h % 1 === 0 ? h.toFixed(0) : h.toFixed(2)) + 'h';
+      el.className = 'day-hours';
+      el.style.color = '';
+      warn.classList.remove('show');
+    }
   } else {
     el.textContent = '—';
     el.className = 'day-hours empty';
+    el.style.color = '';
+    badge.textContent = 'wird automatisch berechnet';
+    badge.className = 'pause-badge';
+    pauseHid.value = 0;
+    warn.classList.remove('show');
   }
   calcTotal();
 }
@@ -311,10 +401,10 @@ function calcTotal() {
   DAYS.forEach((_,i) => {
     const von = timeToMins(document.getElementById('von-'+i)?.value);
     const bis = timeToMins(document.getElementById('bis-'+i)?.value);
-    const pause = parseInt(document.getElementById('pause-'+i)?.value)||0;
-    if (von!=null && bis!=null && bis>von) total += Math.max(0,(bis-von-pause)/60);
+    const pause = parseInt(document.getElementById('pause-'+i)?.value) || 0;
+    if (von != null && bis != null && bis > von) total += Math.max(0, (bis - von - pause) / 60);
   });
-  document.getElementById('total-hours').textContent = total%1===0?total.toFixed(0):total.toFixed(2);
+  document.getElementById('total-hours').textContent = total % 1 === 0 ? total.toFixed(0) : total.toFixed(2);
 }
 
 // --- ABTEILUNG CHIPS ---
@@ -329,41 +419,58 @@ document.getElementById('chips-abt').addEventListener('click', e => {
 // --- WEEK DATE ---
 document.getElementById('inp-week').addEventListener('change', buildDays);
 
-// --- SIGNATURE ---
-const canvas = document.getElementById('sigCanvas');
-const ctx = canvas.getContext('2d');
-let drawing = false, lastX, lastY;
-
-function resizeSig() {
+// --- PER-DAY SIGNATURES ---
+function initSigCanvas(i) {
+  const canvas = document.getElementById('sigCanvas-'+i);
+  if (!canvas || sigCanvases[i]) return;
+  const dpr = window.devicePixelRatio || 1;
   const w = canvas.offsetWidth;
-  canvas.width = w * window.devicePixelRatio;
-  canvas.height = 120 * window.devicePixelRatio;
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#000';
-  ctx.lineWidth = 2;
+  const h = 110;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#1a1a18';
+  ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
+  sigCanvases[i] = { canvas, ctx, w, h, dpr };
+  sigDrawing[i] = false;
+
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return [src.clientX - rect.left, src.clientY - rect.top];
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    sigDrawing[i] = true;
+    sigLast[i] = getPos(e);
+    e.preventDefault();
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!sigDrawing[i]) return;
+    e.preventDefault();
+    const [x,y] = getPos(e);
+    const [lx,ly] = sigLast[i];
+    ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(x,y); ctx.stroke();
+    sigLast[i] = [x,y];
+    sigData[i] = canvas.toDataURL();
+    const ph = document.getElementById('sigph-'+i);
+    if (ph) ph.style.display = 'none';
+  });
+  canvas.addEventListener('pointerup', () => { sigDrawing[i] = false; sigData[i] = canvas.toDataURL(); });
+  canvas.addEventListener('pointercancel', () => { sigDrawing[i] = false; });
 }
 
-function getPos(e) {
-  const rect = canvas.getBoundingClientRect();
-  const src = e.touches ? e.touches[0] : e;
-  return [(src.clientX - rect.left), (src.clientY - rect.top)];
+function clearSig(i) {
+  const sc = sigCanvases[i];
+  if (!sc) return;
+  sc.ctx.clearRect(0, 0, sc.w, sc.h);
+  sigData[i] = null;
+  const ph = document.getElementById('sigph-'+i);
+  if (ph) ph.style.display = '';
 }
-
-canvas.addEventListener('pointerdown', e => { drawing=true; [lastX,lastY]=getPos(e); e.preventDefault(); });
-canvas.addEventListener('pointermove', e => {
-  if (!drawing) return;
-  e.preventDefault();
-  const [x,y] = getPos(e);
-  ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(x,y); ctx.stroke();
-  [lastX,lastY]=[x,y];
-  sigData = canvas.toDataURL();
-});
-canvas.addEventListener('pointerup', () => { drawing=false; sigData=canvas.toDataURL(); });
-canvas.addEventListener('pointercancel', () => { drawing=false; });
-
-function clearSig() { ctx.clearRect(0,0,canvas.offsetWidth,120); sigData=null; }
 
 // --- SAVE ---
 function collectData() {
@@ -378,16 +485,17 @@ function collectData() {
       bis: document.getElementById('bis-'+i)?.value||'',
       pause: document.getElementById('pause-'+i)?.value||'0',
       al: document.getElementById('al-'+i)?.value||'',
+      sig: sigData[i]||null,
     };
   });
   const total = document.getElementById('total-hours').textContent;
+  const wLabel = weekInput ? weekLabel(weekInput) : weekLabel(currentWeekVal());
   return {
     name: document.getElementById('inp-name').value||'',
     abt: selectedAbt,
-    weekStart: isoToInput(mon),
-    weekLabel: fmtDateFull(mon)+' – '+fmtDateFull(new Date(mon.getTime()+6*86400000)),
+    weekStart: weekInput || currentWeekVal(),
+    weekLabel: wLabel,
     days, total,
-    sig: sigData,
     saved: new Date().toISOString()
   };
 }
@@ -409,54 +517,37 @@ async function exportPDF() {
   const doc = new jsPDF({ orientation:'p', unit:'mm', format:'a4' });
   const W = 210, ml = 20, mr = 20, cw = W - ml - mr;
 
-  // Header
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(16);
+  doc.setFont('helvetica','bold'); doc.setFontSize(16);
   doc.text('Stundennachweis', ml, 20);
-  doc.setFontSize(9);
-  doc.setFont('helvetica','normal');
-  doc.setTextColor(120);
-  doc.text('Lübbert Event Interiors', ml, 26);
-  doc.setTextColor(0);
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  doc.setTextColor(120); doc.text('Lübbert Event Interiors', ml, 26); doc.setTextColor(0);
 
-  // Meta
   doc.setFontSize(10);
-  doc.text('Name:', ml, 38);
-  doc.setFont('helvetica','bold');
-  doc.text(data.name||'—', ml+20, 38);
-  doc.setFont('helvetica','normal');
-  doc.text('Abteilung:', ml+80, 38);
-  doc.setFont('helvetica','bold');
-  doc.text(data.abt, ml+105, 38);
-  doc.setFont('helvetica','normal');
-  doc.text('Woche:', ml, 46);
-  doc.setFont('helvetica','bold');
-  doc.text(data.weekLabel, ml+20, 46);
-  doc.setFont('helvetica','normal');
+  doc.text('Name:', ml, 38); doc.setFont('helvetica','bold'); doc.text(data.name||'—', ml+20, 38);
+  doc.setFont('helvetica','normal'); doc.text('Abteilung:', ml+80, 38);
+  doc.setFont('helvetica','bold'); doc.text(data.abt, ml+105, 38);
+  doc.setFont('helvetica','normal'); doc.text('Woche:', ml, 46);
+  doc.setFont('helvetica','bold'); doc.text(data.weekLabel, ml+20, 46); doc.setFont('helvetica','normal');
 
-  // Table header
   let y = 56;
-  const cols = [28, 40, 20, 20, 22, 14, 26];
-  const headers = ['Tag / Datum','Einsatzort','Von','Bis','Pause','Std','Name AL'];
-  doc.setFillColor(30,30,28);
-  doc.rect(ml, y, cw, 8, 'F');
-  doc.setTextColor(255);
-  doc.setFontSize(8);
-  doc.setFont('helvetica','bold');
+  const cols = [30, 35, 18, 18, 20, 12, 37];
+  const headers = ['Tag / Datum','Einsatzort','Von','Bis','Pause','Std','Name AL / Unterschrift'];
+  doc.setFillColor(30,30,28); doc.rect(ml, y, cw, 8, 'F');
+  doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica','bold');
   let cx = ml+2;
   headers.forEach((h,i) => { doc.text(h, cx, y+5.5); cx+=cols[i]; });
-  doc.setTextColor(0);
-  y += 8;
+  doc.setTextColor(0); y += 8;
 
-  // Rows
-  data.days.forEach((d,idx) => {
+  for (let idx=0; idx<data.days.length; idx++) {
+    const d = data.days[idx];
     const von = timeToMins(d.von), bis = timeToMins(d.bis), pause=parseInt(d.pause)||0;
     let hrs = '';
     if (von!=null&&bis!=null&&bis>von) {
       const h=Math.max(0,(bis-von-pause)/60);
       hrs = (h%1===0?h.toFixed(0):h.toFixed(2));
     }
-    if (idx%2===0) { doc.setFillColor(248,248,246); doc.rect(ml,y,cw,9,'F'); }
+    const rowH = d.sig ? 22 : 10;
+    if (idx%2===0) { doc.setFillColor(248,248,246); doc.rect(ml,y,cw,rowH,'F'); }
     doc.setFont('helvetica','bold'); doc.setFontSize(8);
     cx = ml+2;
     doc.text(d.day+' '+d.date, cx, y+5.5); cx+=cols[0];
@@ -464,39 +555,24 @@ async function exportPDF() {
     doc.text(d.ort||'', cx, y+5.5); cx+=cols[1];
     doc.text(d.von||'—', cx, y+5.5); cx+=cols[2];
     doc.text(d.bis||'—', cx, y+5.5); cx+=cols[3];
-    doc.text(d.pause?d.pause+' min':'—', cx, y+5.5); cx+=cols[4];
+    doc.text(pause?pause+' min':'—', cx, y+5.5); cx+=cols[4];
     doc.setFont('helvetica','bold');
     doc.text(hrs||'—', cx, y+5.5); cx+=cols[5];
     doc.setFont('helvetica','normal');
     doc.text(d.al||'', cx, y+5.5);
-    doc.setDrawColor(220);
-    doc.line(ml, y+9, ml+cw, y+9);
-    y += 9;
-  });
-
-  // Total
-  y += 6;
-  doc.setFont('helvetica','bold'); doc.setFontSize(11);
-  doc.text('Gesamtstunden:', ml, y);
-  doc.setTextColor(24,95,165);
-  doc.text(data.total+' h', ml+40, y);
-  doc.setTextColor(0);
-
-  // Signature
-  if (data.sig) {
-    y += 12;
-    doc.setFont('helvetica','normal'); doc.setFontSize(9);
-    doc.setTextColor(120);
-    doc.text('Unterschrift AL:', ml, y);
-    doc.setTextColor(0);
-    try { doc.addImage(data.sig,'PNG',ml,y+3,60,22); } catch(e){}
-    doc.setDrawColor(180);
-    doc.line(ml, y+27, ml+70, y+27);
+    if (d.sig) {
+      try { doc.addImage(d.sig,'PNG',cx, y+1, 30, 14); } catch(e){}
+    }
+    doc.setDrawColor(220); doc.line(ml, y+rowH, ml+cw, y+rowH);
+    y += rowH;
   }
 
-  // Footer
-  doc.setFont('helvetica','normal'); doc.setFontSize(8);
-  doc.setTextColor(150);
+  y += 8;
+  doc.setFont('helvetica','bold'); doc.setFontSize(11);
+  doc.text('Gesamtstunden:', ml, y);
+  doc.setTextColor(24,95,165); doc.text(data.total+' h', ml+40, y); doc.setTextColor(0);
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(150);
   doc.text('Es werden nur Stunden angerechnet, die auf diesem Nachweis eingetragen und vom AL abgezeichnet sind.', ml, 285);
   doc.text('Einzureichen bis zum 20. Tag eines Monats.', ml, 290);
 
@@ -536,30 +612,34 @@ function loadWeek(key) {
   if (!w) return;
   document.getElementById('inp-name').value = w.name;
   document.getElementById('inp-week').value = w.weekStart;
-  selectedAbt = w.abt;
-  document.querySelectorAll('#chips-abt .chip').forEach(c => {
+  selectedAbt = w.abt;.forEach(c => {
     c.classList.toggle('active', c.dataset.val===w.abt);
   });
   buildDays();
-  // fill in day data after buildDays
   setTimeout(() => {
     w.days.forEach((d,i) => {
       const setV = (id,v) => { const el=document.getElementById(id+'-'+i); if(el) el.value=v; };
-      setV('ort',d.ort); setV('von',d.von); setV('bis',d.bis); setV('pause',d.pause); setV('al',d.al);
+      setV('ort',d.ort); setV('von',d.von); setV('bis',d.bis); setV('al',d.al);
       if (d.von||d.bis) {
         document.getElementById('dbody-'+i).classList.add('open');
+        initSigCanvas(i);
         calcDay(i);
       }
+      if (d.sig) {
+        sigData[i] = d.sig;
+        const sc = sigCanvases[i];
+        if (sc) {
+          const img = new Image();
+          img.onload = () => { sc.ctx.drawImage(img, 0, 0, sc.w, sc.h); };
+          img.src = d.sig;
+          const ph = document.getElementById('sigph-'+i);
+          if (ph) ph.style.display = 'none';
+        }
+      }
     });
-    if (w.sig) {
-      const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0, canvas.offsetWidth, 120);
-      img.src = w.sig;
-      sigData = w.sig;
-    }
     navigate('home');
     showToast('Woche geladen');
-  }, 50);
+  }, 80);
 }
 
 function deleteWeek(e, key) {
@@ -582,23 +662,19 @@ function showToast(msg) {
 
 // --- INIT ---
 function init() {
-  const mon = getMonday();
-  document.getElementById('inp-week').value = isoToInput(mon);
+  document.getElementById('inp-week').value = currentWeekVal();
   const saved = localStorage.getItem('stundenzettel_name');
   if (saved) document.getElementById('inp-name').value = saved;
   document.getElementById('inp-name').addEventListener('blur', e => {
     localStorage.setItem('stundenzettel_name', e.target.value);
   });
-  resizeSig();
   buildDays();
 }
 
-window.addEventListener('resize', resizeSig);
 init();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
-</script>
 </body>
 </html>
