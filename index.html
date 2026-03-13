@@ -59,7 +59,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sa
 .field input:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .time-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 /* Force 24h time display */
-input[type=time]{width:100%;padding:10px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:15px;-webkit-appearance:none;appearance:none;-webkit-date-and-time-value:{hour-cycle:h23}}
+input[type=time]{width:100%;padding:10px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:15px;-webkit-appearance:none;appearance:none;-webkit-text-fill-color:var(--text)}
+input[type=time]::-webkit-datetime-edit-ampm-field{display:none}
+input[type=time]::-webkit-clear-button{display:none}
 input[type=time]:focus{outline:2px solid var(--accent);outline-offset:-1px}
 
 /* CHIPS */
@@ -296,12 +298,6 @@ function buildDays() {
           +'<div class="day-al">'
             +'<div class="field"><label>Name AL</label>'
               +'<input type="text" id="al-'+i+'" placeholder="Vorname Nachname"/></div>'
-            +'<div class="field"><label>Unterschrift AL</label>'
-              +'<div class="sig-wrap">'
-                +'<canvas id="sigc-'+i+'"></canvas>'
-                +'<div class="sig-placeholder" id="sigph-'+i+'">Hier unterschreiben</div>'
-                +'<button class="sig-clear" onclick="clearSig('+i+')">löschen</button>'
-              +'</div></div>'
           +'</div>'
         +'</div>';
       container.appendChild(row);
@@ -331,15 +327,22 @@ function renderShift(dayIdx, shiftIdx) {
     '<div class="shift-label">Schicht '+(shiftIdx+1)+removeBtn+'</div>'
     +'<div class="time-pair">'
       +'<div class="field"><label>Von</label>'
-        +'<input type="time" id="von-'+dayIdx+'-'+shiftIdx+'" oninput="calcDay('+dayIdx+')" step="60"/></div>'
+        +'<input type="time" id="von-'+dayIdx+'-'+shiftIdx+'" oninput="calcDay('+dayIdx+')"/></div>'
       +'<div class="field"><label>Bis</label>'
-        +'<input type="time" id="bis-'+dayIdx+'-'+shiftIdx+'" oninput="calcDay('+dayIdx+')" step="60"/></div>'
+        +'<input type="time" id="bis-'+dayIdx+'-'+shiftIdx+'" oninput="calcDay('+dayIdx+')"/></div>'
     +'</div>'
     +'<div class="field"><label>Pause</label>'
       +'<div class="pause-badge" id="pbadge-'+dayIdx+'-'+shiftIdx+'">wird automatisch berechnet</div>'
-      +'<input type="hidden" id="pause-'+dayIdx+'-'+shiftIdx+'" value="0"/></div>';
+      +'<input type="hidden" id="pause-'+dayIdx+'-'+shiftIdx+'" value="0"/></div>'
+    +'<div class="field"><label>Unterschrift AL</label>'
+      +'<div class="sig-wrap">'
+        +'<canvas id="sigc-'+dayIdx+'-'+shiftIdx+'"></canvas>'
+        +'<div class="sig-placeholder" id="sigph-'+dayIdx+'-'+shiftIdx+'">Hier unterschreiben</div>'
+        +'<button class="sig-clear" onclick="clearShiftSig('+dayIdx+','+shiftIdx+')">löschen</button>'
+      +'</div></div>';
 
   container.appendChild(block);
+  setTimeout(function(){ initShiftSig(dayIdx, shiftIdx); }, 0);
 }
 
 function addShift(dayIdx) {
@@ -400,7 +403,7 @@ function calcDay(dayIdx) {
     if (von !== null && bis !== null && bis > von) {
       var raw = bis - von;
       var pause = autoPause(raw);
-      var net = raw - pause;
+      var net = Math.max(180, raw - pause);  // minimum 3h per shift
       pauseEl.value = pause;
       badge.textContent = pause > 0 ? pause+' min (automatisch)' : 'keine Pause';
       badge.className = 'pause-badge' + (pause > 0 ? ' auto' : '');
@@ -432,7 +435,7 @@ function calcTotal() {
       var von = timeToMins((document.getElementById('von-'+i+'-'+s)||{}).value);
       var bis = timeToMins((document.getElementById('bis-'+i+'-'+s)||{}).value);
       var pause = parseInt((document.getElementById('pause-'+i+'-'+s)||{value:'0'}).value)||0;
-      if (von !== null && bis !== null && bis > von) total += Math.max(0,(bis-von-pause)/60);
+      if (von !== null && bis !== null && bis > von) total += Math.max(3, (bis-von-pause)/60);
     }
   }
   var t = document.getElementById('total-hours');
@@ -448,10 +451,13 @@ document.getElementById('chips-abt').addEventListener('click', function(e) {
 
 document.getElementById('inp-week').addEventListener('change', buildDays);
 
-// ---- SIGNATURE ----
-function initSig(i) {
-  var canvas = document.getElementById('sigc-'+i);
-  if (!canvas || (sigCanvases[i] && sigCanvases[i]._ready)) return;
+// ---- SIGNATURE (day-level, kept for compat) ----
+var shiftSigCanvases = {}, shiftSigDrawing = {}, shiftSigLast = {}, shiftSigData = {};
+
+function initShiftSig(dayIdx, shiftIdx) {
+  var key = dayIdx+'-'+shiftIdx;
+  var canvas = document.getElementById('sigc-'+key);
+  if (!canvas || (shiftSigCanvases[key] && shiftSigCanvases[key]._ready)) return;
   var dpr = window.devicePixelRatio||1;
   var pw = canvas.parentElement.offsetWidth||300;
   var ph = 110;
@@ -461,32 +467,37 @@ function initSig(i) {
   ctx.scale(dpr, dpr);
   ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--text').trim()||'#1a1a18';
   ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  sigCanvases[i] = {canvas:canvas, ctx:ctx, w:pw, h:ph, _ready:true};
-  sigDrawing[i] = false;
+  shiftSigCanvases[key] = {canvas:canvas, ctx:ctx, w:pw, h:ph, _ready:true};
+  shiftSigDrawing[key] = false;
 
   function getPos(e) {
     var r = canvas.getBoundingClientRect();
-    var s = e.touches ? e.touches[0] : e;
-    return [s.clientX-r.left, s.clientY-r.top];
+    var src = e.touches ? e.touches[0] : e;
+    return [src.clientX-r.left, src.clientY-r.top];
   }
-  canvas.addEventListener('pointerdown', function(e){ sigDrawing[i]=true; sigLast[i]=getPos(e); e.preventDefault(); });
+  canvas.addEventListener('pointerdown', function(e){ shiftSigDrawing[key]=true; shiftSigLast[key]=getPos(e); e.preventDefault(); });
   canvas.addEventListener('pointermove', function(e){
-    if (!sigDrawing[i]) return; e.preventDefault();
-    var p=getPos(e), l=sigLast[i];
+    if (!shiftSigDrawing[key]) return; e.preventDefault();
+    var p=getPos(e), l=shiftSigLast[key];
     ctx.beginPath(); ctx.moveTo(l[0],l[1]); ctx.lineTo(p[0],p[1]); ctx.stroke();
-    sigLast[i]=p; sigData[i]._main = canvas.toDataURL();
-    var ph2=document.getElementById('sigph-'+i); if(ph2) ph2.style.display='none';
+    shiftSigLast[key]=p; shiftSigData[key]=canvas.toDataURL();
+    var ph2=document.getElementById('sigph-'+key); if(ph2) ph2.style.display='none';
   });
-  canvas.addEventListener('pointerup', function(){ sigDrawing[i]=false; sigData[i]._main=canvas.toDataURL(); });
-  canvas.addEventListener('pointercancel', function(){ sigDrawing[i]=false; });
+  canvas.addEventListener('pointerup', function(){ shiftSigDrawing[key]=false; shiftSigData[key]=canvas.toDataURL(); });
+  canvas.addEventListener('pointercancel', function(){ shiftSigDrawing[key]=false; });
 }
 
-function clearSig(i) {
-  var sc = sigCanvases[i]; if (!sc) return;
+function clearShiftSig(dayIdx, shiftIdx) {
+  var key = dayIdx+'-'+shiftIdx;
+  var sc = shiftSigCanvases[key]; if (!sc) return;
   sc.ctx.clearRect(0,0,sc.w,sc.h);
-  if (sigData[i]) sigData[i]._main = null;
-  var ph = document.getElementById('sigph-'+i); if(ph) ph.style.display='';
+  shiftSigData[key] = null;
+  var ph = document.getElementById('sigph-'+key); if(ph) ph.style.display='';
 }
+
+// legacy day-level sig (no longer rendered but kept so old saves don't break)
+function initSig(i) {}
+function clearSig(i) {}
 
 // ---- COLLECT ----
 function collectData() {
@@ -496,18 +507,19 @@ function collectData() {
     var d = new Date(mon.getTime()+i*86400000);
     var shifts = [];
     for (var s=0; s<(shiftCounts[i]||1); s++) {
+      var key = i+'-'+s;
       shifts.push({
-        von:(document.getElementById('von-'+i+'-'+s)||{}).value||'',
-        bis:(document.getElementById('bis-'+i+'-'+s)||{}).value||'',
-        pause:(document.getElementById('pause-'+i+'-'+s)||{value:'0'}).value||'0'
+        von:(document.getElementById('von-'+key)||{}).value||'',
+        bis:(document.getElementById('bis-'+key)||{}).value||'',
+        pause:(document.getElementById('pause-'+key)||{value:'0'}).value||'0',
+        sig:shiftSigData[key]||null
       });
     }
     return {
       day:day, date:fmtDateFull(d),
       ort:(document.getElementById('ort-'+i)||{}).value||'',
       shifts:shifts,
-      al:(document.getElementById('al-'+i)||{}).value||'',
-      sig:(sigData[i]&&sigData[i]._main)||null
+      al:(document.getElementById('al-'+i)||{}).value||''
     };
   });
   return {
@@ -556,34 +568,34 @@ async function exportPDF() {
 
   for (var idx=0; idx<data.days.length; idx++) {
     var dd = data.days[idx];
+    var activeShifts = dd.shifts.filter(function(sh){ return sh.von && sh.bis; });
+    if (!activeShifts.length) continue;
+
     var dayNet = 0;
-    dd.shifts.forEach(function(sh){
+    activeShifts.forEach(function(sh){
       var v=timeToMins(sh.von), b=timeToMins(sh.bis), p=parseInt(sh.pause)||0;
-      if(v!==null&&b!==null&&b>v) dayNet+=Math.max(0,(b-v-p)/60);
+      if(v!==null&&b!==null&&b>v) dayNet+=Math.max(3,(b-v-p)/60);
     });
-    var hrsStr = dayNet>0 ? (dayNet%1===0?dayNet.toFixed(0):dayNet.toFixed(2)) : '—';
+    var hrsStr = dayNet%1===0 ? dayNet.toFixed(0) : dayNet.toFixed(2);
 
-    // build time string
-    var timeStr = dd.shifts.filter(function(sh){return sh.von||sh.bis}).map(function(sh){
-      return (sh.von||'—')+' – '+(sh.bis||'—');
-    }).join(' / ');
+    var firstSig = null;
+    for (var si=0; si<activeShifts.length; si++) { if(activeShifts[si].sig){ firstSig=activeShifts[si].sig; break; } }
 
-    var pauseStr = dd.shifts.filter(function(sh){return parseInt(sh.pause)>0}).map(function(sh){
-      return sh.pause+' min';
-    }).join(' / ') || '—';
+    var timeStr = activeShifts.map(function(sh){ return sh.von+' – '+sh.bis; }).join(' / ');
+    var pauseStr = activeShifts.map(function(sh){ return parseInt(sh.pause)>0 ? sh.pause+' min' : '—'; }).join(' / ');
 
-    var rowH = dd.sig ? 22 : 10;
+    var rowH = firstSig ? 22 : 10;
     if (idx%2===0){ doc.setFillColor(248,248,246); doc.rect(ml,y,cw,rowH,'F'); }
     cx=ml+2;
     doc.setFont('helvetica','bold'); doc.setFontSize(8);
     doc.text(dd.day+' '+dd.date,cx,y+5.5); cx+=cols[0];
     doc.setFont('helvetica','normal');
     doc.text(dd.ort||'',cx,y+5.5); cx+=cols[1];
-    doc.text(timeStr||'—',cx,y+5.5); cx+=cols[2]+cols[3]; // von+bis merged for multi
+    doc.text(timeStr,cx,y+5.5); cx+=cols[2]+cols[3];
     doc.text(pauseStr,cx,y+5.5); cx+=cols[4];
-    doc.setFont('helvetica','bold'); doc.text(hrsStr,cx,y+5.5); cx+=cols[5];
+    doc.setFont('helvetica','bold'); doc.text(hrsStr+'h',cx,y+5.5); cx+=cols[5];
     doc.setFont('helvetica','normal'); doc.text(dd.al||'',cx,y+5.5);
-    if (dd.sig){ try{ doc.addImage(dd.sig,'PNG',cx,y+1,28,12); }catch(e){} }
+    if (firstSig){ try{ doc.addImage(firstSig,'PNG',cx,y+1,28,12); }catch(e){} }
     doc.setDrawColor(220); doc.line(ml,y+rowH,ml+cw,y+rowH);
     y+=rowH;
   }
@@ -631,26 +643,24 @@ function loadWeek(key) {
       var ortEl = document.getElementById('ort-'+i); if(ortEl) ortEl.value=d.ort||'';
       var alEl = document.getElementById('al-'+i); if(alEl) alEl.value=d.al||'';
 
-      // restore shifts (may be old format with von/bis directly)
-      var shifts = d.shifts || [{von:d.von||'',bis:d.bis||'',pause:d.pause||'0'}];
-      // add extra shifts if needed
+      var shifts = d.shifts || [{von:d.von||'',bis:d.bis||'',pause:d.pause||'0',sig:d.sig||null}];
       for (var s=1; s<shifts.length; s++) addShift(i);
 
       shifts.forEach(function(sh,s){
         var vEl=document.getElementById('von-'+i+'-'+s); if(vEl) vEl.value=sh.von||'';
         var bEl=document.getElementById('bis-'+i+'-'+s); if(bEl) bEl.value=sh.bis||'';
+        if (sh.sig) {
+          var key2=i+'-'+s;
+          shiftSigData[key2]=sh.sig;
+          var sc=shiftSigCanvases[key2];
+          if(sc){var img=new Image();img.onload=function(){sc.ctx.drawImage(img,0,0,sc.w,sc.h)};img.src=sh.sig;}
+          var ph=document.getElementById('sigph-'+key2);if(ph)ph.style.display='none';
+        }
       });
 
       if (shifts.some(function(sh){return sh.von||sh.bis;})) {
         document.getElementById('dbody-'+i).classList.add('open');
-        initSig(i); calcDay(i);
-      }
-      if (d.sig) {
-        sigData[i] = sigData[i]||{};
-        sigData[i]._main = d.sig;
-        var sc=sigCanvases[i];
-        if(sc){ var img=new Image(); img.onload=function(){sc.ctx.drawImage(img,0,0,sc.w,sc.h)}; img.src=d.sig; }
-        var ph=document.getElementById('sigph-'+i); if(ph) ph.style.display='none';
+        calcDay(i);
       }
     });
     navigate('home'); showToast('Woche geladen');
