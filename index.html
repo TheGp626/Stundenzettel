@@ -494,7 +494,12 @@ function initShiftSig(dayIdx, shiftIdx) {
     var src = e.touches ? e.touches[0] : e;
     return [src.clientX-r.left, src.clientY-r.top];
   }
-  canvas.addEventListener('pointerdown', function(e){ shiftSigDrawing[key]=true; shiftSigLast[key]=getPos(e); e.preventDefault(); });
+  canvas.addEventListener('pointerdown', function(e){
+    shiftSigDrawing[key]=true;
+    shiftSigLast[key]=getPos(e);
+    if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
   canvas.addEventListener('pointermove', function(e){
     if (!shiftSigDrawing[key]) return; e.preventDefault();
     var p=getPos(e), l=shiftSigLast[key];
