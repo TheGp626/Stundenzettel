@@ -1,50 +1,45 @@
-# Stundenzettel (PWA)
+# Stundenzettel PWA
 
-Einfache Web‑App zum Erfassen von Arbeitszeiten pro Kalenderwoche, inklusive:
+digitaler Stundennachweis für Lübbert Event Interiors. gebaut weil ich keine Lust mehr hatte papier rumzuschleppen.
 
-- mehreren Schichten pro Tag
-- automatischer Pausenberechnung
-- Ort / Venue pro Tag
-- AL‑Unterschrift (Fullscreen-Signaturpad)
-- PDF‑Export
-- Offline/PWA Unterstützung (Service Worker)
+läuft als PWA, also installierbar auf android, funktioniert offline, sieht aus wie eine app.
 
-## Nutzung
+## was es kann
 
-1. Name und Kalenderwoche eintragen.
-2. Tage aufklappen und Schichten eintragen (`Von` / `Bis`).
-3. Optional: Ort / Venue und Name AL erfassen.
-4. Für Signatur:
-   - auf das Signaturfeld tippen **oder**
-   - auf den Button `Vollbild` im Signaturfeld drücken.
-5. Mit `Woche speichern` lokal speichern.
-6. Mit `Als PDF exportieren` Nachweis exportieren.
+- woche auswählen, tage aufklappen, zeiten eintragen
+- mehrere schichten pro tag (z.b. auf- und abbau am selben tag)
+- pause wird automatisch berechnet (0 / 30 / 45 min je nach stunden)
+- minimum 3h pro schicht wird automatisch angerechnet
+- AL name + unterschrift direkt im feld zeichnen
+- als PDF exportieren
+- wochen lokal speichern und wieder laden
+- dark/light/auto theme
 
-## Signatur-Hinweis (wichtig)
+## benutzen
 
-Wenn Signatur auf einem Gerät nicht öffnet:
+1. name rein, woche auswählen
+2. tag aufklappen
+3. von/bis eintragen, ort wenn nötig
+4. AL unterschreiben lassen
+5. speichern oder direkt als PDF raus
 
-- zuerst den `Vollbild`-Button im Signaturfeld nutzen (harter Fallback),
-- dann Browser/PWA einmal neu laden,
-- bei installierter App ggf. App schließen und neu öffnen.
-
-Die App versucht Fullscreen + Landscape bei Signatur automatisch (wenn vom Browser erlaubt).
-
-## Lokal starten
+## lokal testen
 
 ```bash
 python -m http.server 4173
 ```
 
-Dann im Browser öffnen: `http://localhost:4173`
+dann `http://localhost:4173` im browser
 
-## Deployment
+## deployment
 
-Statische Dateien:
+einfach die 4 dateien/ordner auf github pages schmeißen:
 
-- `index.html`
-- `sw.js`
-- `manifest.json`
-- `icons/*`
+```
+index.html
+sw.js
+manifest.json
+icons/
+```
 
-Für GitHub Pages direkt geeignet.
+settings → pages → branch main / root → save. fertig.

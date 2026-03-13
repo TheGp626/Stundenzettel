@@ -439,7 +439,9 @@ function toggleDay(i) {
   var body = document.getElementById('dbody-'+i);
   var wasOpen = body.classList.contains('open');
   body.classList.toggle('open');
-  if (!wasOpen) setTimeout(function(){ initSig(i); }, 0);
+  if (!wasOpen) setTimeout(function(){
+    for (var s = 0; s < (shiftCounts[i]||1); s++) initShiftSig(i, s);
+  }, 50);
 }
 
 // ---- CALC ----
