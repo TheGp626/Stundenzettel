@@ -123,6 +123,18 @@ input[type=time]:focus{outline:2px solid var(--accent);outline-offset:-1px}
 /* TOAST */
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--text);color:var(--bg);padding:10px 20px;border-radius:99px;font-size:13px;font-weight:500;opacity:0;transition:all .2s;pointer-events:none;white-space:nowrap;z-index:999}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* SIGNATURE PAD MODAL */
+.sig-modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;z-index:1200;align-items:center;justify-content:center;padding:14px}
+.sig-modal.open{display:flex}
+.sig-modal-inner{width:min(980px,100%);background:var(--bg);border-radius:14px;padding:12px;border:0.5px solid var(--border2)}
+.sig-modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.sig-modal-title{font-size:14px;font-weight:600}
+.sig-modal-sub{font-size:12px;color:var(--text2)}
+.sig-pad-wrap{margin-top:8px;border:0.5px solid var(--border2);border-radius:10px;overflow:hidden;background:#fff;height:min(48vh,320px)}
+.sig-pad-wrap canvas{width:100%;height:100%;display:block;touch-action:none}
+.sig-actions{display:flex;gap:8px;margin-top:10px}
+.sig-actions .btn{margin:0}
 </style>
 </head>
 <body>
@@ -190,6 +202,25 @@ input[type=time]:focus{outline:2px solid var(--accent);outline-offset:-1px}
 </nav>
 </div>
 <div class="toast" id="toast"></div>
+<div class="sig-modal" id="sig-modal">
+  <div class="sig-modal-inner">
+    <div class="sig-modal-head">
+      <div>
+        <div class="sig-modal-title">Unterschrift erfassen</div>
+        <div class="sig-modal-sub" id="sig-modal-sub">Querformat empfohlen</div>
+      </div>
+      <button class="theme-btn" onclick="closeSigModal()" title="Schließen">✕</button>
+    </div>
+    <div class="sig-pad-wrap">
+      <canvas id="sig-modal-canvas"></canvas>
+    </div>
+    <div class="sig-actions">
+      <button class="btn" onclick="clearSigModal()">Löschen</button>
+      <button class="btn" onclick="closeSigModal()">Abbrechen</button>
+      <button class="btn primary" onclick="saveSigModal()">Übernehmen</button>
+    </div>
+  </div>
+</div>
 
 <script>
 var DAYS = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
@@ -337,10 +368,10 @@ function renderShift(dayIdx, shiftIdx) {
       +'<div class="pause-badge" id="pbadge-'+dayIdx+'-'+shiftIdx+'">wird automatisch berechnet</div>'
       +'<input type="hidden" id="pause-'+dayIdx+'-'+shiftIdx+'" value="0"/></div>'
     +'<div class="field"><label>Unterschrift AL</label>'
-      +'<div class="sig-wrap">'
+      +'<div class="sig-wrap" onclick="openSignaturePad('+dayIdx+','+shiftIdx+')">'
         +'<canvas id="sigc-'+dayIdx+'-'+shiftIdx+'"></canvas>'
-        +'<div class="sig-placeholder" id="sigph-'+dayIdx+'-'+shiftIdx+'">Hier unterschreiben</div>'
-        +'<button class="sig-clear" onclick="clearShiftSig('+dayIdx+','+shiftIdx+')">löschen</button>'
+        +'<div class="sig-placeholder" id="sigph-'+dayIdx+'-'+shiftIdx+'">Tippen für Unterschrift (Vollbild)</div>'
+        +'<button class="sig-clear" onclick="event.stopPropagation();clearShiftSig('+dayIdx+','+shiftIdx+')">löschen</button>'
       +'</div></div>';
 
   container.appendChild(block);
@@ -472,27 +503,36 @@ document.getElementById('inp-week').addEventListener('change', buildDays);
 
 // ---- SIGNATURE (day-level, kept for compat) ----
 var shiftSigCanvases = {}, shiftSigDrawing = {}, shiftSigLast = {}, shiftSigData = {};
+var sigModalState = { key:null, drawing:false, last:null, hasInk:false };
 
 function initShiftSig(dayIdx, shiftIdx) {
   var key = dayIdx+'-'+shiftIdx;
   var canvas = document.getElementById('sigc-'+key);
   if (!canvas || (shiftSigCanvases[key] && shiftSigCanvases[key]._ready)) return;
+
   var dpr = window.devicePixelRatio||1;
   var pw = canvas.parentElement.offsetWidth||300;
   var ph = 110;
   canvas.width = pw*dpr; canvas.height = ph*dpr;
   canvas.style.width = pw+'px'; canvas.style.height = ph+'px';
+
   var ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
   ctx.strokeStyle = '#1a1a18';
   ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   shiftSigCanvases[key] = {canvas:canvas, ctx:ctx, w:pw, h:ph, _ready:true};
-  shiftSigDrawing[key] = false;
 
-  function getPos(e) {
-    var r = canvas.getBoundingClientRect();
-    var src = e.touches ? e.touches[0] : e;
-    return [src.clientX-r.left, src.clientY-r.top];
+  redrawShiftSig(key);
+}
+
+function redrawShiftSig(key) {
+  var sc = shiftSigCanvases[key];
+  if (!sc) return;
+  sc.ctx.clearRect(0,0,sc.w,sc.h);
+  if (shiftSigData[key]) {
+    var img = new Image();
+    img.onload = function(){ sc.ctx.drawImage(img,0,0,sc.w,sc.h); };
+    img.src = shiftSigData[key];
   }
   canvas.addEventListener('pointerdown', function(e){
     shiftSigDrawing[key]=true;
@@ -504,8 +544,9 @@ function initShiftSig(dayIdx, shiftIdx) {
     if (!shiftSigDrawing[key]) return; e.preventDefault();
     var p=getPos(e), l=shiftSigLast[key];
     ctx.beginPath(); ctx.moveTo(l[0],l[1]); ctx.lineTo(p[0],p[1]); ctx.stroke();
-    shiftSigLast[key]=p; shiftSigData[key]=canvas.toDataURL();
-    var ph2=document.getElementById('sigph-'+key); if(ph2) ph2.style.display='none';
+    sigModalState.last = p;
+    sigModalState.hasInk = true;
+    e.preventDefault();
   });
   canvas.addEventListener('pointerup', function(){ shiftSigDrawing[key]=false; shiftSigData[key]=canvas.toDataURL(); });
   canvas.addEventListener('pointerleave', function(){ shiftSigDrawing[key]=false; });
@@ -514,10 +555,8 @@ function initShiftSig(dayIdx, shiftIdx) {
 
 function clearShiftSig(dayIdx, shiftIdx) {
   var key = dayIdx+'-'+shiftIdx;
-  var sc = shiftSigCanvases[key]; if (!sc) return;
-  sc.ctx.clearRect(0,0,sc.w,sc.h);
   shiftSigData[key] = null;
-  var ph = document.getElementById('sigph-'+key); if(ph) ph.style.display='';
+  redrawShiftSig(key);
 }
 
 // legacy day-level sig (no longer rendered but kept so old saves don't break)
@@ -583,8 +622,8 @@ async function exportPDF() {
   doc.setFont('helvetica','bold'); doc.text(data.weekLabel,ml+18,46);
 
   var y=56;
-  var cols=[30,28,18,18,20,12,44];
-  var headers=['Tag / Datum','Einsatzort','Von','Bis','Pause','Std','Name AL / Unterschrift'];
+  var cols=[28,22,16,16,18,10,28,32];
+  var headers=['Tag / Datum','Einsatzort','Von','Bis','Pause','Std','Name AL','Unterschrift AL'];
   doc.setFillColor(30,30,28); doc.rect(ml,y,cw,8,'F');
   doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica','bold');
   var cx=ml+2;
@@ -702,9 +741,7 @@ function loadWeek(key) {
         if (sh.sig) {
           var key2=i+'-'+s;
           shiftSigData[key2]=sh.sig;
-          var sc=shiftSigCanvases[key2];
-          if(sc){var img=new Image();img.onload=function(){sc.ctx.drawImage(img,0,0,sc.w,sc.h)};img.src=sh.sig;}
-          var ph=document.getElementById('sigph-'+key2);if(ph)ph.style.display='none';
+          redrawShiftSig(key2);
         }
       });
 
