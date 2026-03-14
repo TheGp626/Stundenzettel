@@ -23,23 +23,4 @@ läuft als PWA, also installierbar auf android, funktioniert offline, sieht aus 
 4. AL unterschreiben lassen
 5. speichern oder direkt als PDF raus
 
-## lokal testen
 
-```bash
-python -m http.server 4173
-```
-
-dann `http://localhost:4173` im browser
-
-## deployment
-
-einfach die 4 dateien/ordner auf github pages schmeißen:
-
-```
-index.html
-sw.js
-manifest.json
-icons/
-```
-
-settings → pages → branch main / root → save. fertig.
