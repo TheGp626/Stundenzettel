@@ -1,967 +1,1724 @@
 <!DOCTYPE html>
 <html lang="de" data-theme="auto">
+
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-<meta name="apple-mobile-web-app-title" content="Stundenzettel"/>
-<link rel="manifest" href="manifest.json"/>
-<link rel="apple-touch-icon" href="icons/icon-192.png"/>
-<title>Stundennachweis</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<style>
-/* ── TOKENS ── */
-:root {
-  --bg:#ffffff;--bg2:#f5f5f4;--bg3:#e8e7e3;
-  --text:#1a1a18;--text2:#6b6b67;--text3:#9b9b97;
-  --border:rgba(0,0,0,0.12);--border2:rgba(0,0,0,0.22);
-  --accent:#185FA5;--accent-bg:#E6F1FB;--accent-text:#185FA5;
-  --danger:#A32D2D;--radius:10px;--radius-lg:14px;
-}
-[data-theme="dark"] {
-  --bg:#1c1c1a;--bg2:#252523;--bg3:#2e2e2b;
-  --text:#f0efe9;--text2:#a0a09a;--text3:#6a6a65;
-  --border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.18);
-  --accent:#4a90d9;--accent-bg:#0c2a45;--accent-text:#7ab8ef;
-}
-@media(prefers-color-scheme:dark){
-  [data-theme="auto"]{
-    --bg:#1c1c1a;--bg2:#252523;--bg3:#2e2e2b;
-    --text:#f0efe9;--text2:#a0a09a;--text3:#6a6a65;
-    --border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.18);
-    --accent:#4a90d9;--accent-bg:#0c2a45;--accent-text:#7ab8ef;
-  }
-}
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Stundenzettel" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>Stundennachweis</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    /* ── TOKENS ── */
+    :root {
+      --bg: #ffffff;
+      --bg2: #f5f5f4;
+      --bg3: #e8e7e3;
+      --text: #1a1a18;
+      --text2: #6b6b67;
+      --text3: #9b9b97;
+      --border: rgba(0, 0, 0, 0.12);
+      --border2: rgba(0, 0, 0, 0.22);
+      --accent: #185FA5;
+      --accent-bg: #E6F1FB;
+      --accent-text: #185FA5;
+      --danger: #A32D2D;
+      --radius: 10px;
+      --radius-lg: 14px;
+    }
 
-/* ── RESET ── */
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+    [data-theme="dark"] {
+      --bg: #1c1c1a;
+      --bg2: #252523;
+      --bg3: #2e2e2b;
+      --text: #f0efe9;
+      --text2: #a0a09a;
+      --text3: #6a6a65;
+      --border: rgba(255, 255, 255, 0.1);
+      --border2: rgba(255, 255, 255, 0.18);
+      --accent: #4a90d9;
+      --accent-bg: #0c2a45;
+      --accent-text: #7ab8ef;
+    }
 
-/* ── LAYOUT ── */
-.app{display:flex;flex-direction:column;height:100%}
-.page{flex:1;flex-direction:column;overflow:hidden;display:none}
-.page.active{display:flex}
+    @media(prefers-color-scheme:dark) {
+      [data-theme="auto"] {
+        --bg: #1c1c1a;
+        --bg2: #252523;
+        --bg3: #2e2e2b;
+        --text: #f0efe9;
+        --text2: #a0a09a;
+        --text3: #6a6a65;
+        --border: rgba(255, 255, 255, 0.1);
+        --border2: rgba(255, 255, 255, 0.18);
+        --accent: #4a90d9;
+        --accent-bg: #0c2a45;
+        --accent-text: #7ab8ef;
+      }
+    }
 
-/* ── TOP BAR ── */
-.top-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px 6px;flex-shrink:0}
-.app-title{font-size:18px;font-weight:600}
-.app-sub{font-size:11px;color:var(--text2);margin-top:1px}
-.theme-btn{background:none;border:0.5px solid var(--border2);border-radius:var(--radius);padding:8px 10px;cursor:pointer;font-size:18px;color:var(--text2);flex-shrink:0}
-.theme-btn:active{background:var(--bg2)}
+    /* ── RESET ── */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent
+    }
 
-/* ── TOP TABS ── */
-.top-tabs{display:flex;border-bottom:0.5px solid var(--border);flex-shrink:0}
-.top-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px 4px;font-size:13px;font-family:inherit;border:none;background:none;color:var(--text3);cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-0.5px;font-weight:500;transition:color .15s}
-.top-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-.tab-icon{font-size:16px;line-height:1}
+    html,
+    body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px
+    }
 
-/* ── META SECTION (name / week / dept) ── */
-.meta-section{padding:10px 16px 8px;flex-shrink:0}
-.meta-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
-.meta-field{display:flex;flex-direction:column}
-.meta-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:3px}
-.meta-input{width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:14px;-webkit-appearance:none;appearance:none}
-.meta-input:focus{outline:2px solid var(--accent);outline-offset:-1px}
-.dept-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:6px}
+    /* ── LAYOUT ── */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100%
+    }
 
-/* ── CHIPS ── */
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{padding:5px 12px;border:0.5px solid var(--border2);border-radius:99px;font-size:12px;cursor:pointer;color:var(--text2);background:var(--bg);user-select:none}
-.chip.active{border-color:var(--accent);background:var(--accent-bg);color:var(--accent-text);font-weight:500}
+    .page {
+      flex: 1;
+      flex-direction: column;
+      overflow: hidden;
+      display: none
+    }
 
-/* ── WEEK STRIP ── */
-.week-strip-section{padding:10px 16px 4px;flex-shrink:0}
-.week-strip-header{font-size:11px;color:var(--text2);font-weight:500;letter-spacing:.01em;margin-bottom:8px}
-.week-strip{display:flex;justify-content:space-between;align-items:flex-start}
-.day-bubble-wrap{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1;padding:0 2px;user-select:none}
-.day-bubble-name{font-size:9px;text-transform:uppercase;color:var(--text3);font-weight:600;letter-spacing:.04em}
-.day-bubble{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--text3);background:var(--bg);transition:box-shadow .15s,background .15s,color .15s,border-color .15s}
-.day-bubble.partial{background:var(--bg2);color:var(--text2)}
-.day-bubble.done{background:var(--accent-bg);color:var(--accent-text);border-color:var(--accent)}
-.day-bubble.active{box-shadow:0 0 0 2.5px var(--accent);border-color:var(--accent)}
-.day-bubble-date{font-size:9px;color:var(--text3)}
-.day-bubble-wrap:active .day-bubble{opacity:.7;transform:scale(.92)}
+    .page.active {
+      display: flex
+    }
 
-/* ── WEEK TOTAL CHIP ── */
-.week-total-chip{display:flex;justify-content:space-between;align-items:center;margin:8px 16px 0;background:var(--accent-bg);border:0.5px solid var(--accent);border-radius:var(--radius);padding:9px 16px;flex-shrink:0}
-.wtc-label{font-size:12px;color:var(--accent-text);font-weight:500}
-.wtc-val{font-size:24px;font-weight:700;color:var(--accent)}
-.wtc-unit{font-size:13px;color:var(--accent-text);margin-left:2px}
+    /* ── TOP BAR ── */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px 6px;
+      flex-shrink: 0
+    }
 
-/* ── DAY EDITOR AREA ── */
-.day-editor-area{flex:1;overflow-y:auto;padding:4px 16px 10px}
-.day-empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text3);text-align:center;font-size:14px;line-height:1.6;padding:24px}
-.day-empty-icon{font-size:40px;margin-bottom:12px}
-.day-editor-head{padding:12px 0 8px;border-bottom:0.5px solid var(--border);margin-bottom:12px}
-.day-editor-title{font-size:17px;font-weight:600}
-.day-editor-date{font-size:12px;color:var(--text2);margin-top:2px}
+    .app-title {
+      font-size: 18px;
+      font-weight: 600
+    }
 
-/* ── FAB AREA ── */
-.fab-area{display:flex;gap:10px;padding:8px 16px max(10px,env(safe-area-inset-bottom));border-top:0.5px solid var(--border);flex-shrink:0;background:var(--bg)}
+    .app-sub {
+      font-size: 11px;
+      color: var(--text2);
+      margin-top: 1px
+    }
 
-/* ── HISTORY PAGE ── */
-.history-scroll{flex:1;overflow-y:auto;padding:16px 16px 32px}
-.history-page-header{margin-bottom:16px}
-.history-page-title{font-size:22px;font-weight:600}
-.history-page-sub{font-size:13px;color:var(--text2);margin-top:2px}
+    .theme-btn {
+      background: none;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 18px;
+      color: var(--text2);
+      flex-shrink: 0
+    }
 
-/* ── FORM ELEMENTS (shift inputs) ── */
-.field{margin-bottom:10px}
-.field label{display:block;font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
-.field input[type=text],.field input[type=week]{width:100%;padding:9px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:15px;-webkit-appearance:none;appearance:none}
-.field input:focus{outline:2px solid var(--accent);outline-offset:-1px}
-.time-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-input[type=time]{width:100%;padding:9px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:15px;-webkit-appearance:none;appearance:none;-webkit-text-fill-color:var(--text)}
-input[type=time]::-webkit-datetime-edit-ampm-field{display:none}
-input[type=time]::-webkit-clear-button{display:none}
-input[type=time]:focus{outline:2px solid var(--accent);outline-offset:-1px}
+    .theme-btn:active {
+      background: var(--bg2)
+    }
 
-/* ── SHIFT BLOCKS ── */
-.shift-block{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px;margin-top:10px;position:relative}
-.shift-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:10px}
-.shift-remove{position:absolute;top:10px;right:10px;background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;line-height:1;padding:0}
-.shift-remove:active{color:var(--danger)}
-.shift-block .field{margin-bottom:7px}
-.shift-block .field:last-child{margin-bottom:0}
-.pause-badge{display:inline-block;font-size:12px;color:var(--text2);background:var(--bg3);border-radius:99px;padding:3px 10px;margin-top:2px}
-.pause-badge.auto{color:var(--accent-text);background:var(--accent-bg)}
-.add-shift-btn{display:flex;align-items:center;gap:6px;margin-top:10px;padding:8px 12px;border:0.5px dashed var(--border2);border-radius:var(--radius);background:none;color:var(--text2);font-size:13px;cursor:pointer;width:100%}
-.add-shift-btn:active{background:var(--bg3)}
+    /* ── TOP TABS ── */
+    .top-tabs {
+      display: flex;
+      border-bottom: 0.5px solid var(--border);
+      flex-shrink: 0
+    }
 
-/* ── SIGNATURE ── */
-.sig-wrap{position:relative;border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden;background:var(--bg);height:100px;cursor:pointer}
-.sig-wrap canvas{position:absolute;top:0;left:0;width:100%;height:100%;touch-action:manipulation;pointer-events:none;display:block}
-.sig-placeholder{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:12px;color:var(--text3);pointer-events:none;white-space:nowrap}
-.sig-clear{position:absolute;top:6px;right:6px;font-size:12px;color:var(--text3);background:var(--bg2);border:0.5px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;z-index:2}
-.sig-full-btn{margin-top:6px;width:100%;padding:8px 10px;border:0.5px solid var(--accent);border-radius:8px;background:var(--accent-bg);color:var(--accent-text);font-size:13px;font-weight:600;cursor:pointer}
-.sig-full-btn:active{opacity:.85}
+    .top-tab {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 9px 4px;
+      font-size: 13px;
+      font-family: inherit;
+      border: none;
+      background: none;
+      color: var(--text3);
+      cursor: pointer;
+      border-bottom: 2.5px solid transparent;
+      margin-bottom: -0.5px;
+      font-weight: 500;
+      transition: color .15s
+    }
 
-/* ── BUTTONS ── */
-.btn{display:block;flex:1;padding:12px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:15px;font-weight:500;cursor:pointer;text-align:center}
-.btn:active{background:var(--bg3)}
-.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.btn.primary:active{opacity:.85}
+    .top-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent)
+    }
 
-/* ── HISTORY CARDS ── */
-.card{background:var(--bg2);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:12px;border:0.5px solid var(--border);cursor:pointer}
-.card:active{background:var(--bg3)}
-.history-week{font-size:14px;font-weight:600}
-.history-sub{font-size:12px;color:var(--text2);margin-top:3px}
-.history-hours{font-size:20px;font-weight:700;color:var(--accent)}
-.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg3);color:var(--text2)}
-.empty-state{text-align:center;padding:48px 16px;color:var(--text3);font-size:14px}
-.empty-icon{font-size:40px;margin-bottom:12px}
+    .tab-icon {
+      font-size: 16px;
+      line-height: 1
+    }
 
-/* ── TOAST ── */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--text);color:var(--bg);padding:10px 20px;border-radius:99px;font-size:13px;font-weight:500;opacity:0;transition:all .2s;pointer-events:none;white-space:nowrap;z-index:999}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    /* ── META SECTION (name / week / dept) ── */
+    .meta-section {
+      padding: 10px 16px 8px;
+      flex-shrink: 0
+    }
 
-/* ── SIGNATURE MODAL ── */
-.sig-modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;z-index:1200;align-items:center;justify-content:center;padding:14px}
-.sig-modal.open{display:flex}
-.sig-modal-inner{width:min(980px,100%);background:var(--bg);border-radius:14px;padding:12px;border:0.5px solid var(--border2)}
-.sig-modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.sig-modal-title{font-size:14px;font-weight:600}
-.sig-modal-sub{font-size:12px;color:var(--text2)}
-.sig-pad-wrap{margin-top:8px;border:0.5px solid var(--border2);border-radius:10px;overflow:hidden;background:#fff;height:min(48vh,320px)}
-.sig-pad-wrap canvas{width:100%;height:100%;display:block;touch-action:none}
-.sig-actions{display:flex;gap:8px;margin-top:10px}
-.sig-actions .btn{margin:0}
-</style>
+    .meta-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 8px
+    }
+
+    .meta-field {
+      display: flex;
+      flex-direction: column
+    }
+
+    .meta-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--text3);
+      margin-bottom: 3px
+    }
+
+    .meta-input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      -webkit-appearance: none;
+      appearance: none
+    }
+
+    .meta-input:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px
+    }
+
+    .dept-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--text3);
+      margin-bottom: 6px
+    }
+
+    /* ── CHIPS ── */
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px
+    }
+
+    .chip {
+      padding: 5px 12px;
+      border: 0.5px solid var(--border2);
+      border-radius: 99px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text2);
+      background: var(--bg);
+      user-select: none
+    }
+
+    .chip.active {
+      border-color: var(--accent);
+      background: var(--accent-bg);
+      color: var(--accent-text);
+      font-weight: 500
+    }
+
+    /* ── WEEK STRIP ── */
+    .week-strip-section {
+      padding: 10px 16px 4px;
+      flex-shrink: 0
+    }
+
+    .week-strip-header {
+      font-size: 11px;
+      color: var(--text2);
+      font-weight: 500;
+      letter-spacing: .01em;
+      margin-bottom: 8px
+    }
+
+    .week-strip {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start
+    }
+
+    .day-bubble-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+      flex: 1;
+      padding: 0 2px;
+      user-select: none
+    }
+
+    .day-bubble-name {
+      font-size: 9px;
+      text-transform: uppercase;
+      color: var(--text3);
+      font-weight: 600;
+      letter-spacing: .04em
+    }
+
+    .day-bubble {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text3);
+      background: var(--bg);
+      transition: box-shadow .15s, background .15s, color .15s, border-color .15s
+    }
+
+    .day-bubble.partial {
+      background: var(--bg2);
+      color: var(--text2)
+    }
+
+    .day-bubble.done {
+      background: var(--accent-bg);
+      color: var(--accent-text);
+      border-color: var(--accent)
+    }
+
+    .day-bubble.active {
+      box-shadow: 0 0 0 2.5px var(--accent);
+      border-color: var(--accent)
+    }
+
+    .day-bubble-date {
+      font-size: 9px;
+      color: var(--text3)
+    }
+
+    .day-bubble-wrap:active .day-bubble {
+      opacity: .7;
+      transform: scale(.92)
+    }
+
+    /* ── WEEK TOTAL CHIP ── */
+    .week-total-chip {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 16px 0;
+      background: var(--accent-bg);
+      border: 0.5px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 9px 16px;
+      flex-shrink: 0
+    }
+
+    .wtc-label {
+      font-size: 12px;
+      color: var(--accent-text);
+      font-weight: 500
+    }
+
+    .wtc-val {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent)
+    }
+
+    .wtc-unit {
+      font-size: 13px;
+      color: var(--accent-text);
+      margin-left: 2px
+    }
+
+    /* ── DAY EDITOR AREA ── */
+    .day-editor-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 16px 10px
+    }
+
+    .day-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text3);
+      text-align: center;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 24px
+    }
+
+    .day-empty-icon {
+      font-size: 40px;
+      margin-bottom: 12px
+    }
+
+    .day-editor-head {
+      padding: 12px 0 8px;
+      border-bottom: 0.5px solid var(--border);
+      margin-bottom: 12px
+    }
+
+    .day-editor-title {
+      font-size: 17px;
+      font-weight: 600
+    }
+
+    .day-editor-date {
+      font-size: 12px;
+      color: var(--text2);
+      margin-top: 2px
+    }
+
+    /* ── FAB AREA ── */
+    .fab-area {
+      display: flex;
+      gap: 10px;
+      padding: 8px 16px max(10px, env(safe-area-inset-bottom));
+      border-top: 0.5px solid var(--border);
+      flex-shrink: 0;
+      background: var(--bg)
+    }
+
+    /* ── HISTORY PAGE ── */
+    .history-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 16px 32px
+    }
+
+    .history-page-header {
+      margin-bottom: 16px
+    }
+
+    .history-page-title {
+      font-size: 22px;
+      font-weight: 600
+    }
+
+    .history-page-sub {
+      font-size: 13px;
+      color: var(--text2);
+      margin-top: 2px
+    }
+
+    /* ── FORM ELEMENTS (shift inputs) ── */
+    .field {
+      margin-bottom: 10px
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 4px
+    }
+
+    .field input[type=text],
+    .field input[type=week] {
+      width: 100%;
+      padding: 9px 12px;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      -webkit-appearance: none;
+      appearance: none
+    }
+
+    .field input:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px
+    }
+
+    .time-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px
+    }
+
+    input[type=time] {
+      width: 100%;
+      padding: 9px 12px;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      -webkit-appearance: none;
+      appearance: none;
+      -webkit-text-fill-color: var(--text)
+    }
+
+    input[type=time]::-webkit-datetime-edit-ampm-field {
+      display: none
+    }
+
+    input[type=time]::-webkit-clear-button {
+      display: none
+    }
+
+    input[type=time]:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px
+    }
+
+    /* ── SHIFT BLOCKS ── */
+    .shift-block {
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-top: 10px;
+      position: relative
+    }
+
+    .shift-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--text3);
+      margin-bottom: 10px
+    }
+
+    .shift-remove {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: none;
+      border: none;
+      color: var(--text3);
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0
+    }
+
+    .shift-remove:active {
+      color: var(--danger)
+    }
+
+    .shift-block .field {
+      margin-bottom: 7px
+    }
+
+    .shift-block .field:last-child {
+      margin-bottom: 0
+    }
+
+    .pause-badge {
+      display: inline-block;
+      font-size: 12px;
+      color: var(--text2);
+      background: var(--bg3);
+      border-radius: 99px;
+      padding: 3px 10px;
+      margin-top: 2px
+    }
+
+    .pause-badge.auto {
+      color: var(--accent-text);
+      background: var(--accent-bg)
+    }
+
+    .add-shift-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      padding: 8px 12px;
+      border: 0.5px dashed var(--border2);
+      border-radius: var(--radius);
+      background: none;
+      color: var(--text2);
+      font-size: 13px;
+      cursor: pointer;
+      width: 100%
+    }
+
+    .add-shift-btn:active {
+      background: var(--bg3)
+    }
+
+    /* ── SIGNATURE ── */
+    .sig-wrap {
+      position: relative;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--bg);
+      height: 100px;
+      cursor: pointer
+    }
+
+    .sig-wrap canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: manipulation;
+      pointer-events: none;
+      display: block
+    }
+
+    .sig-placeholder {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 12px;
+      color: var(--text3);
+      pointer-events: none;
+      white-space: nowrap
+    }
+
+    .sig-clear {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      font-size: 12px;
+      color: var(--text3);
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: 6px;
+      padding: 3px 8px;
+      cursor: pointer;
+      z-index: 2
+    }
+
+    .sig-full-btn {
+      margin-top: 6px;
+      width: 100%;
+      padding: 8px 10px;
+      border: 0.5px solid var(--accent);
+      border-radius: 8px;
+      background: var(--accent-bg);
+      color: var(--accent-text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer
+    }
+
+    .sig-full-btn:active {
+      opacity: .85
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: block;
+      flex: 1;
+      padding: 12px;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: center
+    }
+
+    .btn:active {
+      background: var(--bg3)
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent)
+    }
+
+    .btn.primary:active {
+      opacity: .85
+    }
+
+    .btn.send {
+      background: var(--accent-bg);
+      color: var(--accent-text);
+      border-color: var(--accent);
+      font-weight: 600
+    }
+
+    .btn.send:active {
+      opacity: .8
+    }
+
+    /* ── HISTORY CARDS ── */
+    .card {
+      background: var(--bg2);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      border: 0.5px solid var(--border);
+      cursor: pointer
+    }
+
+    .card:active {
+      background: var(--bg3)
+    }
+
+    .history-week {
+      font-size: 14px;
+      font-weight: 600
+    }
+
+    .history-sub {
+      font-size: 12px;
+      color: var(--text2);
+      margin-top: 3px
+    }
+
+    .history-hours {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent)
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: var(--bg3);
+      color: var(--text2)
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--text3);
+      font-size: 14px
+    }
+
+    .empty-icon {
+      font-size: 40px;
+      margin-bottom: 12px
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(16px);
+      background: var(--text);
+      color: var(--bg);
+      padding: 10px 20px;
+      border-radius: 99px;
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0;
+      transition: all .2s;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 999
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0)
+    }
+
+    /* ── SIGNATURE MODAL ── */
+    .sig-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .82);
+      display: none;
+      z-index: 1200;
+      align-items: center;
+      justify-content: center;
+      padding: 14px
+    }
+
+    .sig-modal.open {
+      display: flex
+    }
+
+    .sig-modal-inner {
+      width: min(980px, 100%);
+      background: var(--bg);
+      border-radius: 14px;
+      padding: 12px;
+      border: 0.5px solid var(--border2)
+    }
+
+    .sig-modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px
+    }
+
+    .sig-modal-title {
+      font-size: 14px;
+      font-weight: 600
+    }
+
+    .sig-modal-sub {
+      font-size: 12px;
+      color: var(--text2)
+    }
+
+    .sig-pad-wrap {
+      margin-top: 8px;
+      border: 0.5px solid var(--border2);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+      height: min(48vh, 320px)
+    }
+
+    .sig-pad-wrap canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none
+    }
+
+    .sig-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px
+    }
+
+    .sig-actions .btn {
+      margin: 0
+    }
+  </style>
 </head>
+
 <body>
-<div class="app">
+  <div class="app">
 
-  <!-- ── GLOBAL TOP BAR ── -->
-  <div class="top-bar">
-    <div>
-      <div class="app-title">Stundennachweis</div>
-      <div class="app-sub" id="top-bar-sub">Lübbert Event Interiors</div>
-    </div>
-    <button class="theme-btn" id="theme-btn" onclick="cycleTheme()">🌓</button>
-  </div>
-
-  <!-- ── TOP NAVIGATION TABS ── -->
-  <div class="top-tabs">
-    <button class="top-tab active" id="nav-home" onclick="navigate('home')">
-      <span class="tab-icon">✏️</span>Erfassen
-    </button>
-    <button class="top-tab" id="nav-history" onclick="navigate('history')">
-      <span class="tab-icon">📋</span>Verlauf
-    </button>
-  </div>
-
-  <!-- ══════════ ERFASSEN PAGE ══════════ -->
-  <div class="page active" id="page-home">
-
-    <!-- Name · KW · Dept -->
-    <div class="meta-section">
-      <div class="meta-fields">
-        <div class="meta-field">
-          <label class="meta-label">Name</label>
-          <input type="text" id="inp-name" class="meta-input" placeholder="Vollständiger Name"/>
-        </div>
-        <div class="meta-field">
-          <label class="meta-label">Kalenderwoche</label>
-          <input type="week" id="inp-week" class="meta-input"/>
-        </div>
-      </div>
-      <div class="dept-label">Abteilung</div>
-      <div class="chips" id="chips-abt">
-        <div class="chip" data-val="AL (Aufbauleitung)">AL</div>
-        <div class="chip active" data-val="MA für Auf-/Abbau">MA</div>
-        <div class="chip" data-val="Floristik">Floristik</div>
-        <div class="chip" data-val="Lager">Lager</div>
-        <div class="chip" data-val="Stoffe">Stoffe</div>
-        <div class="chip" data-val="Tischlerei">Tischlerei</div>
-      </div>
-    </div>
-
-    <!-- Week Strip -->
-    <div class="week-strip-section">
-      <div class="week-strip-header" id="week-strip-label"></div>
-      <div class="week-strip" id="week-strip"></div>
-    </div>
-
-    <!-- Total chip -->
-    <div class="week-total-chip">
-      <span class="wtc-label">Gesamtstunden</span>
-      <div><span class="wtc-val" id="total-hours">0</span><span class="wtc-unit">h</span></div>
-    </div>
-
-    <!-- Day editor (or empty state) -->
-    <div class="day-editor-area" id="day-editor-area"></div>
-
-    <!-- Action buttons -->
-    <div class="fab-area">
-      <button class="btn primary" onclick="saveWeek()">💾 Speichern</button>
-      <button class="btn" onclick="exportPDF()">📄 Als PDF exportieren</button>
-    </div>
-
-  </div>
-
-  <!-- ══════════ VERLAUF PAGE ══════════ -->
-  <div class="page" id="page-history">
-    <div class="history-scroll">
-      <div class="history-page-header">
-        <div class="history-page-title">Verlauf</div>
-        <div class="history-page-sub">Gespeicherte Wochen</div>
-      </div>
-      <div id="history-list"></div>
-    </div>
-  </div>
-
-</div><!-- /.app -->
-
-<div class="toast" id="toast"></div>
-
-<!-- ── SIGNATURE MODAL ── -->
-<div class="sig-modal" id="sig-modal">
-  <div class="sig-modal-inner">
-    <div class="sig-modal-head">
+    <!-- ── GLOBAL TOP BAR ── -->
+    <div class="top-bar">
       <div>
-        <div class="sig-modal-title">Unterschrift erfassen</div>
-        <div class="sig-modal-sub" id="sig-modal-sub">Querformat empfohlen</div>
+        <div class="app-title">Stundennachweis</div>
+        <div class="app-sub" id="top-bar-sub">Lübbert Event Interiors</div>
       </div>
-      <button class="theme-btn" onclick="closeSigModal()" title="Schließen">✕</button>
+      <button class="theme-btn" id="theme-btn" onclick="cycleTheme()">🌓</button>
     </div>
-    <div class="sig-pad-wrap">
-      <canvas id="sig-modal-canvas"></canvas>
+
+    <!-- ── TOP NAVIGATION TABS ── -->
+    <div class="top-tabs">
+      <button class="top-tab active" id="nav-home" onclick="navigate('home')">
+        <span class="tab-icon">✏️</span>Erfassen
+      </button>
+      <button class="top-tab" id="nav-history" onclick="navigate('history')">
+        <span class="tab-icon">📋</span>Verlauf
+      </button>
     </div>
-    <div class="sig-actions">
-      <button class="btn" onclick="clearSigModal()">Löschen</button>
-      <button class="btn" onclick="closeSigModal()">Abbrechen</button>
-      <button class="btn primary" onclick="saveSigModal()">Übernehmen</button>
+
+    <!-- ══════════ ERFASSEN PAGE ══════════ -->
+    <div class="page active" id="page-home">
+
+      <!-- Name · KW · Dept -->
+      <div class="meta-section">
+        <div class="meta-fields">
+          <div class="meta-field">
+            <label class="meta-label">Name</label>
+            <input type="text" id="inp-name" class="meta-input" placeholder="Vollständiger Name" />
+          </div>
+          <div class="meta-field">
+            <label class="meta-label">Kalenderwoche</label>
+            <input type="week" id="inp-week" class="meta-input" />
+          </div>
+        </div>
+        <div class="dept-label">Abteilung</div>
+        <div class="chips" id="chips-abt">
+          <div class="chip" data-val="AL (Aufbauleitung)">AL</div>
+          <div class="chip active" data-val="MA für Auf-/Abbau">MA</div>
+          <div class="chip" data-val="Floristik">Floristik</div>
+          <div class="chip" data-val="Lager">Lager</div>
+          <div class="chip" data-val="Stoffe">Stoffe</div>
+          <div class="chip" data-val="Tischlerei">Tischlerei</div>
+        </div>
+      </div>
+
+      <!-- Week Strip -->
+      <div class="week-strip-section">
+        <div class="week-strip-header" id="week-strip-label"></div>
+        <div class="week-strip" id="week-strip"></div>
+      </div>
+
+      <!-- Total chip -->
+      <div class="week-total-chip">
+        <span class="wtc-label">Gesamtstunden</span>
+        <div><span class="wtc-val" id="total-hours">0</span><span class="wtc-unit">h</span></div>
+      </div>
+
+      <!-- Day editor (or empty state) -->
+      <div class="day-editor-area" id="day-editor-area"></div>
+
+      <!-- Action buttons -->
+      <div class="fab-area">
+        <button class="btn primary" onclick="saveWeek()">💾 Speichern</button>
+        <button class="btn" onclick="exportPDF()">📄 PDF exportieren</button>
+        <button class="btn send" id="btn-send" onclick="sendToBuchhaltung()">📧 Senden</button>
+      </div>
+
+    </div>
+
+    <!-- ══════════ VERLAUF PAGE ══════════ -->
+    <div class="page" id="page-history">
+      <div class="history-scroll">
+        <div class="history-page-header">
+          <div class="history-page-title">Verlauf</div>
+          <div class="history-page-sub">Gespeicherte Wochen</div>
+        </div>
+        <div id="history-list"></div>
+      </div>
+    </div>
+
+  </div><!-- /.app -->
+
+  <div class="toast" id="toast"></div>
+
+  <!-- ── SIGNATURE MODAL ── -->
+  <div class="sig-modal" id="sig-modal">
+    <div class="sig-modal-inner">
+      <div class="sig-modal-head">
+        <div>
+          <div class="sig-modal-title">Unterschrift erfassen</div>
+          <div class="sig-modal-sub" id="sig-modal-sub">Querformat empfohlen</div>
+        </div>
+        <button class="theme-btn" onclick="closeSigModal()" title="Schließen">✕</button>
+      </div>
+      <div class="sig-pad-wrap">
+        <canvas id="sig-modal-canvas"></canvas>
+      </div>
+      <div class="sig-actions">
+        <button class="btn" onclick="clearSigModal()">Löschen</button>
+        <button class="btn" onclick="closeSigModal()">Abbrechen</button>
+        <button class="btn primary" onclick="saveSigModal()">Übernehmen</button>
+      </div>
     </div>
   </div>
-</div>
 
-<script>
-var DAYS = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
-var DAY_SHORT = ['Mo','Di','Mi','Do','Fr','Sa','So'];
-var selectedAbt = 'MA für Auf-/Abbau';
+  <script>
+    // ── CONFIG ──
+    var BUCHHALTUNG_EMAIL = 'buchhaltung@peterluebbert.de';
 
-// ── DATA STORES ──
-var shiftSigCanvases = {};
-var shiftSigData = {};
-// shiftValues[dayIdx][shiftIdx] = {von, bis, ort, al, pause}
-var shiftValues = {};
-// shiftCounts[dayIdx] = number of shifts
-var shiftCounts = {};
-var activeDayIdx = null;
+    var DAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    var DAY_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    var selectedAbt = 'MA für Auf-/Abbau';
 
-// legacy stubs kept for compat
-var sigModalState = { key:null, drawing:false, last:null, hasInk:false };
+    // ── DATA STORES ──
+    var shiftSigCanvases = {};
+    var shiftSigData = {};
+    // shiftValues[dayIdx][shiftIdx] = {von, bis, ort, al, pause}
+    var shiftValues = {};
+    // shiftCounts[dayIdx] = number of shifts
+    var shiftCounts = {};
+    var activeDayIdx = null;
 
-// ── THEME ──
-var THEMES = ['auto','light','dark'];
-var ICONS  = {'auto':'🌓','light':'☀️','dark':'🌙'};
-var currentTheme = localStorage.getItem('theme') || 'auto';
-applyTheme(currentTheme);
+    // legacy stubs kept for compat
+    var sigModalState = { key: null, drawing: false, last: null, hasInk: false };
 
-function applyTheme(t) {
-  document.documentElement.setAttribute('data-theme', t);
-  document.querySelectorAll('.theme-btn').forEach(function(b){ b.textContent = ICONS[t]; });
-}
-function cycleTheme() {
-  var idx = (THEMES.indexOf(currentTheme) + 1) % THEMES.length;
-  currentTheme = THEMES[idx];
-  localStorage.setItem('theme', currentTheme);
-  applyTheme(currentTheme);
-}
+    // ── THEME ──
+    var THEMES = ['auto', 'light', 'dark'];
+    var ICONS = { 'auto': '🌓', 'light': '☀️', 'dark': '🌙' };
+    var currentTheme = localStorage.getItem('theme') || 'auto';
+    applyTheme(currentTheme);
 
-// ── NAVIGATION ──
-function navigate(page) {
-  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
-  document.querySelectorAll('.top-tab').forEach(function(b){ b.classList.remove('active'); });
-  document.getElementById('page-'+page).classList.add('active');
-  document.getElementById('nav-'+page).classList.add('active');
-  if (page === 'history') renderHistory();
-}
+    function applyTheme(t) {
+      document.documentElement.setAttribute('data-theme', t);
+      document.querySelectorAll('.theme-btn').forEach(function (b) { b.textContent = ICONS[t]; });
+    }
+    function cycleTheme() {
+      var idx = (THEMES.indexOf(currentTheme) + 1) % THEMES.length;
+      currentTheme = THEMES[idx];
+      localStorage.setItem('theme', currentTheme);
+      applyTheme(currentTheme);
+    }
 
-// ── DATE HELPERS ──
-function pad(n){ return String(n).padStart(2,'0'); }
-function fmtDate(d){ return pad(d.getDate())+'.'+pad(d.getMonth()+1); }
-function fmtDateFull(d){ return pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear(); }
+    // ── NAVIGATION ──
+    function navigate(page) {
+      document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
+      document.querySelectorAll('.top-tab').forEach(function (b) { b.classList.remove('active'); });
+      document.getElementById('page-' + page).classList.add('active');
+      document.getElementById('nav-' + page).classList.add('active');
+      if (page === 'history') renderHistory();
+    }
 
-function currentWeekVal() {
-  var d = new Date();
-  var thu = new Date(d); thu.setDate(d.getDate()+(4-(d.getDay()||7)));
-  var year = thu.getFullYear();
-  var jan1 = new Date(year,0,1);
-  var week = Math.ceil(((thu-jan1)/86400000+1)/7);
-  return year+'-W'+pad(week);
-}
+    // ── DATE HELPERS ──
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function fmtDate(d) { return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); }
+    function fmtDateFull(d) { return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + d.getFullYear(); }
 
-function getMondayFromWeekVal(val) {
-  var parts = val.split('-W');
-  var year = parseInt(parts[0]), week = parseInt(parts[1]);
-  var jan4 = new Date(year,0,4);
-  var dow = jan4.getDay()||7;
-  var mon = new Date(jan4);
-  mon.setDate(jan4.getDate()-(dow-1)+(week-1)*7);
-  return mon;
-}
+    function currentWeekVal() {
+      var d = new Date();
+      var thu = new Date(d); thu.setDate(d.getDate() + (4 - (d.getDay() || 7)));
+      var year = thu.getFullYear();
+      var jan1 = new Date(year, 0, 1);
+      var week = Math.ceil(((thu - jan1) / 86400000 + 1) / 7);
+      return year + '-W' + pad(week);
+    }
 
-function weekLabelFromVal(val) {
-  if (!val) return '';
-  var parts = val.split('-W');
-  var mon = getMondayFromWeekVal(val);
-  var sun = new Date(mon.getTime()+6*86400000);
-  return 'KW '+parseInt(parts[1])+'  ·  '+fmtDateFull(mon)+' – '+fmtDateFull(sun);
-}
+    function getMondayFromWeekVal(val) {
+      var parts = val.split('-W');
+      var year = parseInt(parts[0]), week = parseInt(parts[1]);
+      var jan4 = new Date(year, 0, 4);
+      var dow = jan4.getDay() || 7;
+      var mon = new Date(jan4);
+      mon.setDate(jan4.getDate() - (dow - 1) + (week - 1) * 7);
+      return mon;
+    }
 
-function timeToMins(t) {
-  if (!t) return null;
-  var p = t.split(':'); return parseInt(p[0])*60+parseInt(p[1]);
-}
+    function weekLabelFromVal(val) {
+      if (!val) return '';
+      var parts = val.split('-W');
+      var mon = getMondayFromWeekVal(val);
+      var sun = new Date(mon.getTime() + 6 * 86400000);
+      return 'KW ' + parseInt(parts[1]) + '  ·  ' + fmtDateFull(mon) + ' – ' + fmtDateFull(sun);
+    }
 
-function autoPause(rawMins) {
-  if (rawMins >= 540) return 45;
-  if (rawMins >= 360) return 30;
-  return 0;
-}
+    function timeToMins(t) {
+      if (!t) return null;
+      var p = t.split(':'); return parseInt(p[0]) * 60 + parseInt(p[1]);
+    }
 
-// ── DATA CACHE HELPERS ──
-// Save current active day's DOM values to shiftValues cache
-function saveCurrentDayToCache() {
-  var i = activeDayIdx;
-  if (i === null) return;
-  shiftValues[i] = shiftValues[i] || [];
-  for (var s = 0; s < (shiftCounts[i]||1); s++) {
-    var key = i+'-'+s;
-    shiftValues[i][s] = {
-      von:   (document.getElementById('von-'+key)  ||{}).value || '',
-      bis:   (document.getElementById('bis-'+key)  ||{}).value || '',
-      pause: (document.getElementById('pause-'+key)||{value:'0'}).value || '0',
-      ort:   (document.getElementById('ort-'+key)  ||{}).value || '',
-      al:    (document.getElementById('al-'+key)   ||{}).value || ''
-    };
-  }
-}
+    function autoPause(rawMins) {
+      if (rawMins >= 540) return 45;
+      if (rawMins >= 360) return 30;
+      return 0;
+    }
 
-// Get shift data from DOM (active day) or cache (inactive)
-function getShiftData(dayIdx, shiftIdx) {
-  var key = dayIdx+'-'+shiftIdx;
-  if (activeDayIdx === dayIdx) {
-    var vonEl = document.getElementById('von-'+key);
-    if (vonEl) {
+    // ── DATA CACHE HELPERS ──
+    // Save current active day's DOM values to shiftValues cache
+    function saveCurrentDayToCache() {
+      var i = activeDayIdx;
+      if (i === null) return;
+      shiftValues[i] = shiftValues[i] || [];
+      for (var s = 0; s < (shiftCounts[i] || 1); s++) {
+        var key = i + '-' + s;
+        shiftValues[i][s] = {
+          von: (document.getElementById('von-' + key) || {}).value || '',
+          bis: (document.getElementById('bis-' + key) || {}).value || '',
+          pause: (document.getElementById('pause-' + key) || { value: '0' }).value || '0',
+          ort: (document.getElementById('ort-' + key) || {}).value || '',
+          al: (document.getElementById('al-' + key) || {}).value || ''
+        };
+      }
+    }
+
+    // Get shift data from DOM (active day) or cache (inactive)
+    function getShiftData(dayIdx, shiftIdx) {
+      var key = dayIdx + '-' + shiftIdx;
+      if (activeDayIdx === dayIdx) {
+        var vonEl = document.getElementById('von-' + key);
+        if (vonEl) {
+          return {
+            von: vonEl.value || '',
+            bis: (document.getElementById('bis-' + key) || {}).value || '',
+            pause: (document.getElementById('pause-' + key) || { value: '0' }).value || '0',
+            ort: (document.getElementById('ort-' + key) || {}).value || '',
+            al: (document.getElementById('al-' + key) || {}).value || '',
+            sig: shiftSigData[key] || null
+          };
+        }
+      }
+      var sv = (shiftValues[dayIdx] || [])[shiftIdx] || {};
+      return { von: sv.von || '', bis: sv.bis || '', pause: sv.pause || '0', ort: sv.ort || '', al: sv.al || '', sig: shiftSigData[key] || null };
+    }
+
+    // ── BUILD / RESET DAYS ──
+    function buildDays() {
+      shiftSigCanvases = {};
+      shiftSigData = {};
+      shiftValues = {};
+      shiftCounts = {};
+      for (var i = 0; i < DAYS.length; i++) {
+        shiftCounts[i] = 1;
+        shiftValues[i] = [{ von: '', bis: '', ort: '', al: '', pause: '0' }];
+      }
+      activeDayIdx = null;
+      renderWeekStrip();
+      renderDayEditorArea();
+      calcTotal();
+      updateTopBarSub();
+    }
+
+    // ── WEEK STRIP ──
+    function renderWeekStrip() {
+      var val = document.getElementById('inp-week').value || currentWeekVal();
+      var mon = getMondayFromWeekVal(val);
+      var sun = new Date(mon.getTime() + 6 * 86400000);
+      var parts = val.split('-W');
+      var lbl = document.getElementById('week-strip-label');
+      if (lbl) lbl.textContent = 'KW ' + parseInt(parts[1]) + '  ·  ' + fmtDate(mon) + ' – ' + fmtDateFull(sun);
+
+      var strip = document.getElementById('week-strip');
+      if (!strip) return;
+      strip.innerHTML = '';
+      for (var i = 0; i < DAYS.length; i++) {
+        (function (i) {
+          var d = new Date(mon.getTime() + i * 86400000);
+          var wrap = document.createElement('div');
+          wrap.className = 'day-bubble-wrap';
+          wrap.setAttribute('role', 'button');
+          wrap.setAttribute('aria-label', DAYS[i] + ', ' + fmtDate(d));
+          wrap.onclick = (function (idx) { return function () { selectDay(idx); }; })(i);
+          wrap.innerHTML =
+            '<span class="day-bubble-name">' + DAY_SHORT[i] + '</span>' +
+            '<div class="day-bubble" id="bubble-' + i + '">—</div>' +
+            '<span class="day-bubble-date">' + fmtDate(d) + '</span>';
+          strip.appendChild(wrap);
+        })(i);
+      }
+    }
+
+    function selectDay(i) {
+      saveCurrentDayToCache();
+      // Clear canvas cache for previously active day so it reinitialises on next render
+      if (activeDayIdx !== null && activeDayIdx !== i) {
+        for (var s = 0; s < (shiftCounts[activeDayIdx] || 1); s++) {
+          delete shiftSigCanvases[activeDayIdx + '-' + s];
+        }
+      }
+      activeDayIdx = i;
+      // Update bubble ring states
+      for (var j = 0; j < DAYS.length; j++) {
+        var b = document.getElementById('bubble-' + j);
+        if (b) b.classList.toggle('active', j === i);
+      }
+      renderDayEditorArea();
+    }
+
+    function updateBubble(dayIdx) {
+      var bubble = document.getElementById('bubble-' + dayIdx);
+      if (!bubble) return;
+      var totalMins = 0, hasInput = false;
+      for (var s = 0; s < (shiftCounts[dayIdx] || 1); s++) {
+        var data = getShiftData(dayIdx, s);
+        if (data.von || data.bis) hasInput = true;
+        var von = timeToMins(data.von), bis = timeToMins(data.bis);
+        var pause = parseInt(data.pause) || 0;
+        if (von !== null && bis !== null && bis > von) totalMins += Math.max(180, bis - von - pause);
+      }
+      var isActive = (activeDayIdx === dayIdx);
+      bubble.className = 'day-bubble' + (isActive ? ' active' : '');
+      if (totalMins > 0) {
+        var h = totalMins / 60;
+        bubble.textContent = (h % 1 === 0 ? h.toFixed(0) : h.toFixed(1)) + 'h';
+        bubble.classList.add('done');
+      } else if (hasInput) {
+        bubble.textContent = '?';
+        bubble.classList.add('partial');
+      } else {
+        bubble.textContent = '—';
+      }
+    }
+
+    // ── DAY EDITOR ──
+    function renderDayEditorArea() {
+      var area = document.getElementById('day-editor-area');
+      if (!area) return;
+      if (activeDayIdx === null) {
+        area.innerHTML =
+          '<div class="day-empty-state">' +
+          '<div class="day-empty-icon">☝️</div>' +
+          '<div>Tag im Wochenstreifen antippen,<br/>um Stunden einzutragen.</div>' +
+          '</div>';
+        return;
+      }
+      var i = activeDayIdx;
+      var val = document.getElementById('inp-week').value || currentWeekVal();
+      var mon = getMondayFromWeekVal(val);
+      var d = new Date(mon.getTime() + i * 86400000);
+      area.innerHTML =
+        '<div class="day-editor-head">' +
+        '<div class="day-editor-title">' + DAYS[i] + '</div>' +
+        '<div class="day-editor-date">' + fmtDateFull(d) + '</div>' +
+        '</div>' +
+        '<div id="shifts-' + i + '"></div>' +
+        '<button class="add-shift-btn" onclick="addShift(' + i + ')">＋ Schicht hinzufügen</button>';
+
+      for (var s = 0; s < (shiftCounts[i] || 1); s++) renderShift(i, s);
+
+      // Populate cached values and initialise sig canvases
+      setTimeout(function () {
+        var sv = shiftValues[i] || [];
+        var needsCalc = false;
+        sv.forEach(function (sh, s) {
+          var key = i + '-' + s;
+          var vEl = document.getElementById('von-' + key); if (vEl && sh.von) { vEl.value = sh.von; needsCalc = true; }
+          var bEl = document.getElementById('bis-' + key); if (bEl && sh.bis) { bEl.value = sh.bis; needsCalc = true; }
+          var oEl = document.getElementById('ort-' + key); if (oEl && sh.ort) oEl.value = sh.ort;
+          var aEl = document.getElementById('al-' + key); if (aEl && sh.al) aEl.value = sh.al;
+        });
+        if (needsCalc) calcDay(i);
+        for (var s2 = 0; s2 < (shiftCounts[i] || 1); s2++) {
+          initShiftSig(i, s2);
+          redrawShiftSig(i + '-' + s2);
+        }
+      }, 0);
+    }
+
+    function updateTopBarSub() {
+      var name = (document.getElementById('inp-name') || {}).value || '';
+      var val = (document.getElementById('inp-week') || {}).value || currentWeekVal();
+      var parts = val.split('-W');
+      var sub = document.getElementById('top-bar-sub');
+      if (sub) sub.textContent = name ? name + ' · KW ' + parseInt(parts[1]) : 'Lübbert Event Interiors';
+    }
+
+    // ── RENDER SHIFT BLOCK ──
+    function renderShift(dayIdx, shiftIdx) {
+      var container = document.getElementById('shifts-' + dayIdx);
+      if (!container) return;
+      var block = document.createElement('div');
+      block.className = 'shift-block';
+      block.id = 'shift-' + dayIdx + '-' + shiftIdx;
+      var removeBtn = shiftIdx > 0
+        ? '<button class="shift-remove" onclick="removeShift(' + dayIdx + ',' + shiftIdx + ')" title="Schicht entfernen">×</button>'
+        : '';
+      block.innerHTML =
+        '<div class="shift-label">Schicht ' + (shiftIdx + 1) + removeBtn + '</div>' +
+        '<div class="time-pair">' +
+        '<div class="field"><label>Von</label>' +
+        '<input type="time" id="von-' + dayIdx + '-' + shiftIdx + '" oninput="calcDay(' + dayIdx + ')"/></div>' +
+        '<div class="field"><label>Bis</label>' +
+        '<input type="time" id="bis-' + dayIdx + '-' + shiftIdx + '" oninput="calcDay(' + dayIdx + ')"/></div>' +
+        '</div>' +
+        '<div class="field"><label>Pause</label>' +
+        '<div class="pause-badge" id="pbadge-' + dayIdx + '-' + shiftIdx + '">wird automatisch berechnet</div>' +
+        '<input type="hidden" id="pause-' + dayIdx + '-' + shiftIdx + '" value="0"/></div>' +
+        '<div class="field"><label>Ort</label>' +
+        '<input type="text" id="ort-' + dayIdx + '-' + shiftIdx + '" placeholder="Einsatzort"/></div>' +
+        '<div class="field"><label>Name AL</label>' +
+        '<input type="text" id="al-' + dayIdx + '-' + shiftIdx + '" placeholder="Vorname Nachname"/></div>' +
+        '<div class="field"><label>Unterschrift AL</label>' +
+        '<button class="sig-full-btn" type="button" onclick="openSignaturePad(' + dayIdx + ',' + shiftIdx + ')">🖊️ Vollbild-Unterschrift öffnen</button>' +
+        '<div class="sig-wrap" onclick="openSignaturePad(' + dayIdx + ',' + shiftIdx + ')">' +
+        '<canvas id="sigc-' + dayIdx + '-' + shiftIdx + '"></canvas>' +
+        '<div class="sig-placeholder" id="sigph-' + dayIdx + '-' + shiftIdx + '">Tippen für Unterschrift (Vollbild)</div>' +
+        '<button class="sig-clear" type="button" onclick="event.stopPropagation();clearShiftSig(' + dayIdx + ',' + shiftIdx + ')">löschen</button>' +
+        '</div>' +
+        '</div>';
+      container.appendChild(block);
+      setTimeout(function () { initShiftSig(dayIdx, shiftIdx); }, 0);
+    }
+
+    function addShift(dayIdx) {
+      var idx = shiftCounts[dayIdx];
+      shiftCounts[dayIdx]++;
+      if (!shiftValues[dayIdx]) shiftValues[dayIdx] = [];
+      shiftValues[dayIdx].push({ von: '', bis: '', ort: '', al: '', pause: '0' });
+      renderShift(dayIdx, idx);
+      setTimeout(function () { initShiftSig(dayIdx, idx); }, 0);
+      calcDay(dayIdx);
+    }
+
+    function removeShift(dayIdx, shiftIdx) {
+      saveCurrentDayToCache();
+      if (shiftValues[dayIdx]) shiftValues[dayIdx].splice(shiftIdx, 1);
+      // Re-key signature data
+      for (var s = shiftIdx; s < shiftCounts[dayIdx] - 1; s++) {
+        var nk = dayIdx + '-' + s, ok = dayIdx + '-' + (s + 1);
+        if (shiftSigData[ok]) shiftSigData[nk] = shiftSigData[ok];
+        else delete shiftSigData[nk];
+      }
+      delete shiftSigData[dayIdx + '-' + (shiftCounts[dayIdx] - 1)];
+      shiftCounts[dayIdx] = Math.max(1, shiftCounts[dayIdx] - 1);
+      if (!shiftValues[dayIdx] || shiftValues[dayIdx].length === 0) {
+        shiftValues[dayIdx] = [{ von: '', bis: '', ort: '', al: '', pause: '0' }];
+      }
+      shiftSigCanvases = {};
+      renderDayEditorArea();
+    }
+
+    // ── CALC ──
+    function calcDay(dayIdx) {
+      var totalMins = 0;
+      for (var s = 0; s < shiftCounts[dayIdx]; s++) {
+        var vonEl = document.getElementById('von-' + dayIdx + '-' + s);
+        var bisEl = document.getElementById('bis-' + dayIdx + '-' + s);
+        var badge = document.getElementById('pbadge-' + dayIdx + '-' + s);
+        var pauseEl = document.getElementById('pause-' + dayIdx + '-' + s);
+        if (!vonEl || !bisEl) continue;
+        var von = timeToMins(vonEl.value), bis = timeToMins(bisEl.value);
+        if (von !== null && bis !== null && bis > von) {
+          var raw = bis - von, pause = autoPause(raw), net = Math.max(180, raw - pause);
+          if (pauseEl) pauseEl.value = pause;
+          if (badge) { badge.textContent = pause > 0 ? pause + ' min (automatisch)' : 'keine Pause'; badge.className = 'pause-badge' + (pause > 0 ? ' auto' : ''); }
+          totalMins += net;
+        } else {
+          if (pauseEl) pauseEl.value = 0;
+          if (badge) { badge.textContent = 'wird automatisch berechnet'; badge.className = 'pause-badge'; }
+        }
+      }
+      updateBubble(dayIdx);
+      calcTotal();
+    }
+
+    function calcTotal() {
+      var total = 0;
+      for (var i = 0; i < DAYS.length; i++) {
+        for (var s = 0; s < (shiftCounts[i] || 1); s++) {
+          var data = getShiftData(i, s);
+          var von = timeToMins(data.von), bis = timeToMins(data.bis);
+          var pause = parseInt(data.pause) || 0;
+          if (von !== null && bis !== null && bis > von) total += Math.max(3, (bis - von - pause) / 60);
+        }
+      }
+      var t = document.getElementById('total-hours');
+      if (t) t.textContent = total % 1 === 0 ? total.toFixed(0) : total.toFixed(2);
+    }
+
+    // ── DEPT CHIPS ──
+    document.getElementById('chips-abt').addEventListener('click', function (e) {
+      var chip = e.target.closest('.chip'); if (!chip) return;
+      document.querySelectorAll('#chips-abt .chip').forEach(function (c) { c.classList.remove('active'); });
+      chip.classList.add('active'); selectedAbt = chip.dataset.val;
+    });
+
+    document.getElementById('inp-week').addEventListener('change', buildDays);
+
+    // ── SIGNATURE (shift level) ──
+    function initShiftSig(dayIdx, shiftIdx) {
+      var key = dayIdx + '-' + shiftIdx;
+      var canvas = document.getElementById('sigc-' + key);
+      if (!canvas || (shiftSigCanvases[key] && shiftSigCanvases[key]._ready)) return;
+      var dpr = window.devicePixelRatio || 1;
+      var pw = canvas.parentElement.offsetWidth || 300;
+      var ph = 100;
+      canvas.width = pw * dpr; canvas.height = ph * dpr;
+      canvas.style.width = pw + 'px'; canvas.style.height = ph + 'px';
+      var ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      ctx.strokeStyle = '#1a1a18'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      shiftSigCanvases[key] = { canvas: canvas, ctx: ctx, w: pw, h: ph, _ready: true };
+      redrawShiftSig(key);
+    }
+
+    function redrawShiftSig(key) {
+      var sc = shiftSigCanvases[key]; if (!sc) return;
+      sc.ctx.clearRect(0, 0, sc.w, sc.h);
+      if (shiftSigData[key]) {
+        var img = new Image();
+        img.onload = function () { sc.ctx.drawImage(img, 0, 0, sc.w, sc.h); };
+        img.src = shiftSigData[key];
+      }
+      var ph = document.getElementById('sigph-' + key);
+      if (ph) ph.style.display = shiftSigData[key] ? 'none' : '';
+    }
+
+    function initSigModalCanvas() {
+      var c = document.getElementById('sig-modal-canvas');
+      var dpr = window.devicePixelRatio || 1;
+      var rect = c.parentElement.getBoundingClientRect();
+      var w = Math.max(1, Math.round(rect.width)), h = Math.max(1, Math.round(rect.height));
+      c.width = w * dpr; c.height = h * dpr;
+      c.style.width = '100%'; c.style.height = '100%';
+      var ctx = c.getContext('2d');
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.scale(dpr, dpr);
+      ctx.strokeStyle = '#1a1a18'; ctx.lineWidth = 2.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      return { canvas: c, ctx: ctx, w: w, h: h };
+    }
+
+    function redrawSigModalFromState() {
+      var key = sigModalState.key; if (!key) return;
+      var pad = initSigModalCanvas();
+      if (shiftSigData[key]) {
+        var img = new Image();
+        img.onload = function () { pad.ctx.drawImage(img, 0, 0, pad.w, pad.h); };
+        img.src = shiftSigData[key];
+      }
+    }
+
+    function openSignaturePad(dayIdx, shiftIdx) {
+      var key = dayIdx + '-' + shiftIdx;
+      sigModalState.key = key; sigModalState.drawing = false; sigModalState.last = null;
+      sigModalState.hasInk = !!shiftSigData[key];
+      var sub = document.getElementById('sig-modal-sub');
+      if (sub) sub.textContent = DAYS[dayIdx] + ' · Schicht ' + (shiftIdx + 1) + ' · Querformat empfohlen';
+      var modal = document.getElementById('sig-modal');
+      modal.classList.add('open');
+      if (modal.requestFullscreen) { try { modal.requestFullscreen(); } catch (_) { } }
+      if (screen.orientation && screen.orientation.lock) { try { screen.orientation.lock('landscape'); } catch (_) { } }
+      requestAnimationFrame(function () { requestAnimationFrame(redrawSigModalFromState); });
+    }
+
+    function sigModalPos(e, c) { var r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+
+    (function bindSigModalEvents() {
+      var c = document.getElementById('sig-modal-canvas'); if (!c) return;
+      c.addEventListener('pointerdown', function (e) {
+        sigModalState.drawing = true; sigModalState.last = sigModalPos(e, c);
+        if (c.setPointerCapture) c.setPointerCapture(e.pointerId); e.preventDefault();
+      });
+      c.addEventListener('pointermove', function (e) {
+        if (!sigModalState.drawing) return;
+        var ctx = c.getContext('2d'), p = sigModalPos(e, c), l = sigModalState.last;
+        ctx.beginPath(); ctx.moveTo(l[0], l[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
+        sigModalState.last = p; sigModalState.hasInk = true; e.preventDefault();
+      });
+      c.addEventListener('pointerup', function (e) {
+        sigModalState.drawing = false;
+        if (c.releasePointerCapture) { try { c.releasePointerCapture(e.pointerId); } catch (_) { } }
+      });
+      c.addEventListener('pointercancel', function () { sigModalState.drawing = false; });
+    })();
+
+    window.addEventListener('resize', function () {
+      var modal = document.getElementById('sig-modal');
+      if (modal && modal.classList.contains('open')) redrawSigModalFromState();
+    });
+    document.addEventListener('fullscreenchange', function () {
+      var modal = document.getElementById('sig-modal');
+      if (modal && modal.classList.contains('open')) redrawSigModalFromState();
+    });
+    if (screen.orientation && screen.orientation.addEventListener) {
+      screen.orientation.addEventListener('change', function () {
+        var modal = document.getElementById('sig-modal');
+        if (modal && modal.classList.contains('open')) redrawSigModalFromState();
+      });
+    }
+
+    function clearSigModal() {
+      var c = document.getElementById('sig-modal-canvas'), ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height); sigModalState.hasInk = false;
+    }
+    function saveSigModal() {
+      var key = sigModalState.key; if (!key) return closeSigModal();
+      var c = document.getElementById('sig-modal-canvas');
+      shiftSigData[key] = sigModalState.hasInk ? c.toDataURL() : null;
+      redrawShiftSig(key); closeSigModal();
+    }
+    function closeSigModal() {
+      var modal = document.getElementById('sig-modal'); modal.classList.remove('open');
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () { });
+      if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch (_) { } }
+      sigModalState.key = null;
+    }
+    function clearShiftSig(dayIdx, shiftIdx) {
+      var key = dayIdx + '-' + shiftIdx; shiftSigData[key] = null; redrawShiftSig(key);
+    }
+
+    // ── COLLECT DATA ──
+    function collectData() {
+      saveCurrentDayToCache();
+      var val = document.getElementById('inp-week').value || currentWeekVal();
+      var mon = getMondayFromWeekVal(val);
+      var days = DAYS.map(function (day, i) {
+        var d = new Date(mon.getTime() + i * 86400000);
+        var shifts = [];
+        for (var s = 0; s < (shiftCounts[i] || 1); s++) shifts.push(getShiftData(i, s));
+        return { day: day, date: fmtDateFull(d), shifts: shifts };
+      });
       return {
-        von:   vonEl.value || '',
-        bis:   (document.getElementById('bis-'+key)  ||{}).value || '',
-        pause: (document.getElementById('pause-'+key)||{value:'0'}).value || '0',
-        ort:   (document.getElementById('ort-'+key)  ||{}).value || '',
-        al:    (document.getElementById('al-'+key)   ||{}).value || '',
-        sig:   shiftSigData[key] || null
+        name: document.getElementById('inp-name').value || '',
+        abt: selectedAbt,
+        weekStart: val,
+        weekLabel: weekLabelFromVal(val),
+        days: days,
+        total: document.getElementById('total-hours').textContent,
+        saved: new Date().toISOString()
       };
     }
-  }
-  var sv = (shiftValues[dayIdx]||[])[shiftIdx] || {};
-  return { von:sv.von||'', bis:sv.bis||'', pause:sv.pause||'0', ort:sv.ort||'', al:sv.al||'', sig:shiftSigData[key]||null };
-}
 
-// ── BUILD / RESET DAYS ──
-function buildDays() {
-  shiftSigCanvases = {};
-  shiftSigData     = {};
-  shiftValues      = {};
-  shiftCounts      = {};
-  for (var i = 0; i < DAYS.length; i++) {
-    shiftCounts[i] = 1;
-    shiftValues[i] = [{ von:'', bis:'', ort:'', al:'', pause:'0' }];
-  }
-  activeDayIdx = null;
-  renderWeekStrip();
-  renderDayEditorArea();
-  calcTotal();
-  updateTopBarSub();
-}
-
-// ── WEEK STRIP ──
-function renderWeekStrip() {
-  var val = document.getElementById('inp-week').value || currentWeekVal();
-  var mon = getMondayFromWeekVal(val);
-  var sun = new Date(mon.getTime()+6*86400000);
-  var parts = val.split('-W');
-  var lbl = document.getElementById('week-strip-label');
-  if (lbl) lbl.textContent = 'KW '+parseInt(parts[1])+'  ·  '+fmtDate(mon)+' – '+fmtDateFull(sun);
-
-  var strip = document.getElementById('week-strip');
-  if (!strip) return;
-  strip.innerHTML = '';
-  for (var i = 0; i < DAYS.length; i++) {
-    (function(i){
-      var d = new Date(mon.getTime()+i*86400000);
-      var wrap = document.createElement('div');
-      wrap.className = 'day-bubble-wrap';
-      wrap.setAttribute('role','button');
-      wrap.setAttribute('aria-label', DAYS[i]+', '+fmtDate(d));
-      wrap.onclick = (function(idx){ return function(){ selectDay(idx); }; })(i);
-      wrap.innerHTML =
-        '<span class="day-bubble-name">'+DAY_SHORT[i]+'</span>'+
-        '<div class="day-bubble" id="bubble-'+i+'">—</div>'+
-        '<span class="day-bubble-date">'+fmtDate(d)+'</span>';
-      strip.appendChild(wrap);
-    })(i);
-  }
-}
-
-function selectDay(i) {
-  saveCurrentDayToCache();
-  // Clear canvas cache for previously active day so it reinitialises on next render
-  if (activeDayIdx !== null && activeDayIdx !== i) {
-    for (var s = 0; s < (shiftCounts[activeDayIdx]||1); s++) {
-      delete shiftSigCanvases[activeDayIdx+'-'+s];
+    function saveWeek() {
+      var data = collectData();
+      if (!data.name) { showToast('Bitte Namen eingeben'); return; }
+      var all = JSON.parse(localStorage.getItem('stundenzettel') || '{}');
+      all[data.weekStart] = data;
+      localStorage.setItem('stundenzettel', JSON.stringify(all));
+      showToast('✅ Gespeichert!');
     }
-  }
-  activeDayIdx = i;
-  // Update bubble ring states
-  for (var j = 0; j < DAYS.length; j++) {
-    var b = document.getElementById('bubble-'+j);
-    if (b) b.classList.toggle('active', j === i);
-  }
-  renderDayEditorArea();
-}
 
-function updateBubble(dayIdx) {
-  var bubble = document.getElementById('bubble-'+dayIdx);
-  if (!bubble) return;
-  var totalMins = 0, hasInput = false;
-  for (var s = 0; s < (shiftCounts[dayIdx]||1); s++) {
-    var data = getShiftData(dayIdx, s);
-    if (data.von || data.bis) hasInput = true;
-    var von = timeToMins(data.von), bis = timeToMins(data.bis);
-    var pause = parseInt(data.pause)||0;
-    if (von !== null && bis !== null && bis > von) totalMins += Math.max(180, bis-von-pause);
-  }
-  var isActive = (activeDayIdx === dayIdx);
-  bubble.className = 'day-bubble'+(isActive ? ' active' : '');
-  if (totalMins > 0) {
-    var h = totalMins/60;
-    bubble.textContent = (h%1===0 ? h.toFixed(0) : h.toFixed(1))+'h';
-    bubble.classList.add('done');
-  } else if (hasInput) {
-    bubble.textContent = '?';
-    bubble.classList.add('partial');
-  } else {
-    bubble.textContent = '—';
-  }
-}
-
-// ── DAY EDITOR ──
-function renderDayEditorArea() {
-  var area = document.getElementById('day-editor-area');
-  if (!area) return;
-  if (activeDayIdx === null) {
-    area.innerHTML =
-      '<div class="day-empty-state">'+
-        '<div class="day-empty-icon">☝️</div>'+
-        '<div>Tag im Wochenstreifen antippen,<br/>um Stunden einzutragen.</div>'+
-      '</div>';
-    return;
-  }
-  var i = activeDayIdx;
-  var val = document.getElementById('inp-week').value || currentWeekVal();
-  var mon = getMondayFromWeekVal(val);
-  var d = new Date(mon.getTime()+i*86400000);
-  area.innerHTML =
-    '<div class="day-editor-head">'+
-      '<div class="day-editor-title">'+DAYS[i]+'</div>'+
-      '<div class="day-editor-date">'+fmtDateFull(d)+'</div>'+
-    '</div>'+
-    '<div id="shifts-'+i+'"></div>'+
-    '<button class="add-shift-btn" onclick="addShift('+i+')">＋ Schicht hinzufügen</button>';
-
-  for (var s = 0; s < (shiftCounts[i]||1); s++) renderShift(i, s);
-
-  // Populate cached values and initialise sig canvases
-  setTimeout(function(){
-    var sv = shiftValues[i] || [];
-    var needsCalc = false;
-    sv.forEach(function(sh, s){
-      var key = i+'-'+s;
-      var vEl = document.getElementById('von-'+key);  if (vEl && sh.von) { vEl.value = sh.von; needsCalc = true; }
-      var bEl = document.getElementById('bis-'+key);  if (bEl && sh.bis) { bEl.value = sh.bis; needsCalc = true; }
-      var oEl = document.getElementById('ort-'+key);  if (oEl && sh.ort) oEl.value = sh.ort;
-      var aEl = document.getElementById('al-'+key);   if (aEl && sh.al)  aEl.value = sh.al;
-    });
-    if (needsCalc) calcDay(i);
-    for (var s2 = 0; s2 < (shiftCounts[i]||1); s2++) {
-      initShiftSig(i, s2);
-      redrawShiftSig(i+'-'+s2);
+    // ── PDF ──
+    async function exportPDF() {
+      var jsPDF = window.jspdf.jsPDF;
+      var data = collectData();
+      var doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      var ml = 20, cw = 170;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.text('Stundennachweis', ml, 20);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(120);
+      doc.text('Lübbert Event Interiors', ml, 26); doc.setTextColor(0);
+      doc.setFontSize(10);
+      doc.text('Name:', ml, 38); doc.setFont('helvetica', 'bold'); doc.text(data.name || '—', ml + 18, 38);
+      doc.setFont('helvetica', 'normal'); doc.text('Abteilung:', ml + 80, 38);
+      doc.setFont('helvetica', 'bold'); doc.text(data.abt, ml + 103, 38);
+      doc.setFont('helvetica', 'normal'); doc.text('Woche:', ml, 46);
+      doc.setFont('helvetica', 'bold'); doc.text(data.weekLabel, ml + 18, 46);
+      var y = 56;
+      var cols = [36, 18, 14, 14, 16, 10, 24, 38];
+      var headers = ['Tag / Datum', 'Einsatzort', 'Von', 'Bis', 'Pause', 'Std', 'Name AL', 'Unterschrift AL'];
+      doc.setFillColor(30, 30, 28); doc.rect(ml, y, cw, 8, 'F');
+      doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+      var cx = ml + 2;
+      headers.forEach(function (h, i) { doc.text(h, cx, y + 5.5); cx += cols[i]; });
+      doc.setTextColor(0); y += 8;
+      for (var idx = 0; idx < data.days.length; idx++) {
+        var dd = data.days[idx];
+        var activeShifts = dd.shifts.filter(function (sh) { return sh.von && sh.bis; });
+        if (!activeShifts.length) continue;
+        var dayNet = 0;
+        activeShifts.forEach(function (sh) {
+          var v = timeToMins(sh.von), b = timeToMins(sh.bis), p = parseInt(sh.pause) || 0;
+          if (v !== null && b !== null && b > v) dayNet += Math.max(3, (b - v - p) / 60);
+        });
+        var hrsStr = dayNet % 1 === 0 ? dayNet.toFixed(0) : dayNet.toFixed(2);
+        var dayRows = activeShifts.length, dayHeight = dayRows * 10;
+        if (y + dayHeight > 268) {
+          doc.addPage(); y = 20;
+          doc.setFillColor(30, 30, 28); doc.rect(ml, y, cw, 8, 'F');
+          doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+          var hcx = ml + 2;
+          headers.forEach(function (h, i) { doc.text(h, hcx, y + 5.5); hcx += cols[i]; });
+          doc.setTextColor(0); y += 8;
+        }
+        for (var row = 0; row < dayRows; row++) {
+          if (idx % 2 === 0) { doc.setFillColor(248, 248, 246); doc.rect(ml, y, cw, 10, 'F'); }
+          cx = ml + 2;
+          if (row === 0) { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.text(dd.day + ' ' + dd.date, cx, y + 5.5); }
+          cx += cols[0]; doc.setFont('helvetica', 'normal');
+          doc.text((activeShifts[row].ort || ''), cx, y + 5.5); cx += cols[1];
+          doc.text(activeShifts[row].von + ' – ' + activeShifts[row].bis, cx, y + 5.5); cx += cols[2] + cols[3];
+          doc.text(parseInt(activeShifts[row].pause) > 0 ? activeShifts[row].pause + ' min' : '—', cx, y + 5.5); cx += cols[4];
+          if (row === 0) { doc.setFont('helvetica', 'bold'); doc.text(hrsStr + 'h', cx, y + 5.5); }
+          cx += cols[5]; doc.setFont('helvetica', 'normal');
+          doc.text((activeShifts[row].al || ''), cx, y + 5.5); cx += cols[6];
+          if (activeShifts[row].sig) { try { doc.addImage(activeShifts[row].sig, 'PNG', cx, y + 1, 28, 8); } catch (e) { } }
+          doc.setDrawColor(220); doc.line(ml, y + 10, ml + cw, y + 10); y += 10;
+        }
+      }
+      y += 8; doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('Gesamtstunden:', ml, y);
+      doc.setTextColor(24, 95, 165); doc.text(data.total + ' h', ml + 38, y); doc.setTextColor(0);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
+      doc.text('Es werden nur Stunden angerechnet, die auf diesem Nachweis eingetragen und vom AL abgezeichnet sind.', ml, 285);
+      doc.text('Einzureichen bis zum 20. Tag eines Monats.', ml, 290);
+      doc.save('stundennachweis_' + data.weekStart + '.pdf');
+      showToast('📄 PDF gespeichert!');
     }
-  }, 0);
-}
 
-function updateTopBarSub() {
-  var name = (document.getElementById('inp-name')||{}).value || '';
-  var val  = (document.getElementById('inp-week')||{}).value || currentWeekVal();
-  var parts = val.split('-W');
-  var sub = document.getElementById('top-bar-sub');
-  if (sub) sub.textContent = name ? name+' · KW '+parseInt(parts[1]) : 'Lübbert Event Interiors';
-}
+    // ── SEND TO BUCHHALTUNG ──
+    async function sendToBuchhaltung() {
+      var jsPDF = window.jspdf.jsPDF;
+      var data = collectData();
+      if (!data.name) { showToast('Bitte Namen eingeben'); return; }
 
-// ── RENDER SHIFT BLOCK ──
-function renderShift(dayIdx, shiftIdx) {
-  var container = document.getElementById('shifts-'+dayIdx);
-  if (!container) return;
-  var block = document.createElement('div');
-  block.className = 'shift-block';
-  block.id = 'shift-'+dayIdx+'-'+shiftIdx;
-  var removeBtn = shiftIdx > 0
-    ? '<button class="shift-remove" onclick="removeShift('+dayIdx+','+shiftIdx+')" title="Schicht entfernen">×</button>'
-    : '';
-  block.innerHTML =
-    '<div class="shift-label">Schicht '+(shiftIdx+1)+removeBtn+'</div>'+
-    '<div class="time-pair">'+
-      '<div class="field"><label>Von</label>'+
-        '<input type="time" id="von-'+dayIdx+'-'+shiftIdx+'" oninput="calcDay('+dayIdx+')"/></div>'+
-      '<div class="field"><label>Bis</label>'+
-        '<input type="time" id="bis-'+dayIdx+'-'+shiftIdx+'" oninput="calcDay('+dayIdx+')"/></div>'+
-    '</div>'+
-    '<div class="field"><label>Pause</label>'+
-      '<div class="pause-badge" id="pbadge-'+dayIdx+'-'+shiftIdx+'">wird automatisch berechnet</div>'+
-      '<input type="hidden" id="pause-'+dayIdx+'-'+shiftIdx+'" value="0"/></div>'+
-    '<div class="field"><label>Ort</label>'+
-      '<input type="text" id="ort-'+dayIdx+'-'+shiftIdx+'" placeholder="Einsatzort"/></div>'+
-    '<div class="field"><label>Name AL</label>'+
-      '<input type="text" id="al-'+dayIdx+'-'+shiftIdx+'" placeholder="Vorname Nachname"/></div>'+
-    '<div class="field"><label>Unterschrift AL</label>'+
-      '<button class="sig-full-btn" type="button" onclick="openSignaturePad('+dayIdx+','+shiftIdx+')">🖊️ Vollbild-Unterschrift öffnen</button>'+
-      '<div class="sig-wrap" onclick="openSignaturePad('+dayIdx+','+shiftIdx+')">'+
-        '<canvas id="sigc-'+dayIdx+'-'+shiftIdx+'"></canvas>'+
-        '<div class="sig-placeholder" id="sigph-'+dayIdx+'-'+shiftIdx+'">Tippen für Unterschrift (Vollbild)</div>'+
-        '<button class="sig-clear" type="button" onclick="event.stopPropagation();clearShiftSig('+dayIdx+','+shiftIdx+')">löschen</button>'+
-      '</div>'+
-    '</div>';
-  container.appendChild(block);
-  setTimeout(function(){ initShiftSig(dayIdx, shiftIdx); }, 0);
-}
+      // Build PDF identical to exportPDF but return as Blob
+      var doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      var ml = 20, cw = 170;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.text('Stundennachweis', ml, 20);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(120);
+      doc.text('Lübbert Event Interiors', ml, 26); doc.setTextColor(0);
+      doc.setFontSize(10);
+      doc.text('Name:', ml, 38); doc.setFont('helvetica', 'bold'); doc.text(data.name || '—', ml + 18, 38);
+      doc.setFont('helvetica', 'normal'); doc.text('Abteilung:', ml + 80, 38);
+      doc.setFont('helvetica', 'bold'); doc.text(data.abt, ml + 103, 38);
+      doc.setFont('helvetica', 'normal'); doc.text('Woche:', ml, 46);
+      doc.setFont('helvetica', 'bold'); doc.text(data.weekLabel, ml + 18, 46);
+      var y = 56;
+      var cols = [36, 18, 14, 14, 16, 10, 24, 38];
+      var headers = ['Tag / Datum', 'Einsatzort', 'Von', 'Bis', 'Pause', 'Std', 'Name AL', 'Unterschrift AL'];
+      doc.setFillColor(30, 30, 28); doc.rect(ml, y, cw, 8, 'F');
+      doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+      var cx = ml + 2;
+      headers.forEach(function (h, i) { doc.text(h, cx, y + 5.5); cx += cols[i]; });
+      doc.setTextColor(0); y += 8;
+      for (var idx = 0; idx < data.days.length; idx++) {
+        var dd = data.days[idx];
+        var activeShifts = dd.shifts.filter(function (sh) { return sh.von && sh.bis; });
+        if (!activeShifts.length) continue;
+        var dayNet = 0;
+        activeShifts.forEach(function (sh) {
+          var v = timeToMins(sh.von), b = timeToMins(sh.bis), p = parseInt(sh.pause) || 0;
+          if (v !== null && b !== null && b > v) dayNet += Math.max(3, (b - v - p) / 60);
+        });
+        var hrsStr = dayNet % 1 === 0 ? dayNet.toFixed(0) : dayNet.toFixed(2);
+        var dayRows = activeShifts.length, dayHeight = dayRows * 10;
+        if (y + dayHeight > 268) {
+          doc.addPage(); y = 20;
+          doc.setFillColor(30, 30, 28); doc.rect(ml, y, cw, 8, 'F');
+          doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+          var hcx = ml + 2;
+          headers.forEach(function (h, i) { doc.text(h, hcx, y + 5.5); hcx += cols[i]; });
+          doc.setTextColor(0); y += 8;
+        }
+        for (var row = 0; row < dayRows; row++) {
+          if (idx % 2 === 0) { doc.setFillColor(248, 248, 246); doc.rect(ml, y, cw, 10, 'F'); }
+          cx = ml + 2;
+          if (row === 0) { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.text(dd.day + ' ' + dd.date, cx, y + 5.5); }
+          cx += cols[0]; doc.setFont('helvetica', 'normal');
+          doc.text((activeShifts[row].ort || ''), cx, y + 5.5); cx += cols[1];
+          doc.text(activeShifts[row].von + ' – ' + activeShifts[row].bis, cx, y + 5.5); cx += cols[2] + cols[3];
+          doc.text(parseInt(activeShifts[row].pause) > 0 ? activeShifts[row].pause + ' min' : '—', cx, y + 5.5); cx += cols[4];
+          if (row === 0) { doc.setFont('helvetica', 'bold'); doc.text(hrsStr + 'h', cx, y + 5.5); }
+          cx += cols[5]; doc.setFont('helvetica', 'normal');
+          doc.text((activeShifts[row].al || ''), cx, y + 5.5); cx += cols[6];
+          if (activeShifts[row].sig) { try { doc.addImage(activeShifts[row].sig, 'PNG', cx, y + 1, 28, 8); } catch (e) { } }
+          doc.setDrawColor(220); doc.line(ml, y + 10, ml + cw, y + 10); y += 10;
+        }
+      }
+      y += 8; doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('Gesamtstunden:', ml, y);
+      doc.setTextColor(24, 95, 165); doc.text(data.total + ' h', ml + 38, y); doc.setTextColor(0);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
+      doc.text('Es werden nur Stunden angerechnet, die auf diesem Nachweis eingetragen und vom AL abgezeichnet sind.', ml, 285);
+      doc.text('Einzureichen bis zum 20. Tag eines Monats.', ml, 290);
 
-function addShift(dayIdx) {
-  var idx = shiftCounts[dayIdx];
-  shiftCounts[dayIdx]++;
-  if (!shiftValues[dayIdx]) shiftValues[dayIdx] = [];
-  shiftValues[dayIdx].push({ von:'', bis:'', ort:'', al:'', pause:'0' });
-  renderShift(dayIdx, idx);
-  setTimeout(function(){ initShiftSig(dayIdx, idx); }, 0);
-  calcDay(dayIdx);
-}
+      var fileName = 'stundennachweis_' + data.weekStart + '_' + data.name.replace(/\s+/g, '_') + '.pdf';
+      var subject = encodeURIComponent('Stundennachweis ' + data.weekLabel + ' – ' + data.name);
+      var body = encodeURIComponent(
+        'Hallo,\n\nanbei der Stundennachweis für ' + data.weekLabel + ' (' + data.name + ', ' + data.abt + ').\nGesamtstunden: ' + data.total + ' h\n\n(Die PDF-Datei wurde automatisch gespeichert und muss noch manuell als Anhang hinzugefügt werden.)\n\nMit freundlichen Grüßen,\n' + data.name
+      );
 
-function removeShift(dayIdx, shiftIdx) {
-  saveCurrentDayToCache();
-  if (shiftValues[dayIdx]) shiftValues[dayIdx].splice(shiftIdx, 1);
-  // Re-key signature data
-  for (var s = shiftIdx; s < shiftCounts[dayIdx]-1; s++) {
-    var nk = dayIdx+'-'+s, ok = dayIdx+'-'+(s+1);
-    if (shiftSigData[ok]) shiftSigData[nk] = shiftSigData[ok];
-    else delete shiftSigData[nk];
-  }
-  delete shiftSigData[dayIdx+'-'+(shiftCounts[dayIdx]-1)];
-  shiftCounts[dayIdx] = Math.max(1, shiftCounts[dayIdx]-1);
-  if (!shiftValues[dayIdx] || shiftValues[dayIdx].length === 0) {
-    shiftValues[dayIdx] = [{ von:'', bis:'', ort:'', al:'', pause:'0' }];
-  }
-  shiftSigCanvases = {};
-  renderDayEditorArea();
-}
+      // Try Web Share API with file (works on Android/iOS)
+      if (navigator.canShare) {
+        try {
+          var pdfBlob = doc.output('blob');
+          var file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: 'Stundennachweis ' + data.weekLabel,
+              text: 'Stundennachweis ' + data.weekLabel + ' – ' + data.name + ', ' + data.total + ' h'
+            });
+            showToast('✅ PDF geteilt!');
+            return;
+          }
+        } catch (err) {
+          if (err.name !== 'AbortError') console.warn('Share failed, falling back', err);
+          else { showToast('Teilen abgebrochen'); return; }
+        }
+      }
 
-// ── CALC ──
-function calcDay(dayIdx) {
-  var totalMins = 0;
-  for (var s = 0; s < shiftCounts[dayIdx]; s++) {
-    var vonEl  = document.getElementById('von-'+dayIdx+'-'+s);
-    var bisEl  = document.getElementById('bis-'+dayIdx+'-'+s);
-    var badge  = document.getElementById('pbadge-'+dayIdx+'-'+s);
-    var pauseEl= document.getElementById('pause-'+dayIdx+'-'+s);
-    if (!vonEl || !bisEl) continue;
-    var von = timeToMins(vonEl.value), bis = timeToMins(bisEl.value);
-    if (von !== null && bis !== null && bis > von) {
-      var raw = bis-von, pause = autoPause(raw), net = Math.max(180, raw-pause);
-      if (pauseEl) pauseEl.value = pause;
-      if (badge) { badge.textContent = pause>0 ? pause+' min (automatisch)' : 'keine Pause'; badge.className='pause-badge'+(pause>0?' auto':''); }
-      totalMins += net;
-    } else {
-      if (pauseEl) pauseEl.value = 0;
-      if (badge) { badge.textContent='wird automatisch berechnet'; badge.className='pause-badge'; }
+      // Desktop fallback: save PDF + open mailto
+      doc.save(fileName);
+      setTimeout(function () {
+        window.location.href = 'mailto:' + BUCHHALTUNG_EMAIL + '?subject=' + subject + '&body=' + body;
+      }, 400);
+      showToast('📧 PDF gespeichert – E-Mail wird geöffnet …');
     }
-  }
-  updateBubble(dayIdx);
-  calcTotal();
-}
 
-function calcTotal() {
-  var total = 0;
-  for (var i = 0; i < DAYS.length; i++) {
-    for (var s = 0; s < (shiftCounts[i]||1); s++) {
-      var data = getShiftData(i, s);
-      var von = timeToMins(data.von), bis = timeToMins(data.bis);
-      var pause = parseInt(data.pause)||0;
-      if (von !== null && bis !== null && bis > von) total += Math.max(3, (bis-von-pause)/60);
+    // ── HISTORY ──
+    function renderHistory() {
+      var list = document.getElementById('history-list');
+      var all = JSON.parse(localStorage.getItem('stundenzettel') || '{}');
+      var keys = Object.keys(all).sort().reverse();
+      if (!keys.length) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div>Noch keine Wochen gespeichert</div></div>';
+        return;
+      }
+      list.innerHTML = keys.map(function (k) {
+        var w = all[k];
+        return '<div class="card" onclick="loadWeek(\'' + k + '\')">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center">' +
+          '<div><div class="history-week">' + w.weekLabel + '</div>' +
+          '<div class="history-sub">' + w.name + ' · <span class="badge">' + w.abt + '</span></div></div>' +
+          '<div style="text-align:right"><div class="history-hours">' + w.total + 'h</div>' +
+          '<button onclick="deleteWeek(event,\'' + k + '\')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;margin-top:4px">löschen</button>' +
+          '</div></div></div>';
+      }).join('');
     }
-  }
-  var t = document.getElementById('total-hours');
-  if (t) t.textContent = total%1===0 ? total.toFixed(0) : total.toFixed(2);
-}
 
-// ── DEPT CHIPS ──
-document.getElementById('chips-abt').addEventListener('click', function(e){
-  var chip = e.target.closest('.chip'); if (!chip) return;
-  document.querySelectorAll('#chips-abt .chip').forEach(function(c){ c.classList.remove('active'); });
-  chip.classList.add('active'); selectedAbt = chip.dataset.val;
-});
-
-document.getElementById('inp-week').addEventListener('change', buildDays);
-
-// ── SIGNATURE (shift level) ──
-function initShiftSig(dayIdx, shiftIdx) {
-  var key = dayIdx+'-'+shiftIdx;
-  var canvas = document.getElementById('sigc-'+key);
-  if (!canvas || (shiftSigCanvases[key] && shiftSigCanvases[key]._ready)) return;
-  var dpr = window.devicePixelRatio||1;
-  var pw = canvas.parentElement.offsetWidth||300;
-  var ph = 100;
-  canvas.width = pw*dpr; canvas.height = ph*dpr;
-  canvas.style.width = pw+'px'; canvas.style.height = ph+'px';
-  var ctx = canvas.getContext('2d');
-  ctx.scale(dpr,dpr);
-  ctx.strokeStyle='#1a1a18'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.lineJoin='round';
-  shiftSigCanvases[key] = { canvas:canvas, ctx:ctx, w:pw, h:ph, _ready:true };
-  redrawShiftSig(key);
-}
-
-function redrawShiftSig(key) {
-  var sc = shiftSigCanvases[key]; if (!sc) return;
-  sc.ctx.clearRect(0,0,sc.w,sc.h);
-  if (shiftSigData[key]) {
-    var img = new Image();
-    img.onload = function(){ sc.ctx.drawImage(img,0,0,sc.w,sc.h); };
-    img.src = shiftSigData[key];
-  }
-  var ph = document.getElementById('sigph-'+key);
-  if (ph) ph.style.display = shiftSigData[key] ? 'none' : '';
-}
-
-function initSigModalCanvas() {
-  var c = document.getElementById('sig-modal-canvas');
-  var dpr = window.devicePixelRatio||1;
-  var rect = c.parentElement.getBoundingClientRect();
-  var w = Math.max(1,Math.round(rect.width)), h = Math.max(1,Math.round(rect.height));
-  c.width = w*dpr; c.height = h*dpr;
-  c.style.width='100%'; c.style.height='100%';
-  var ctx = c.getContext('2d');
-  ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr,dpr);
-  ctx.strokeStyle='#1a1a18'; ctx.lineWidth=2.8; ctx.lineCap='round'; ctx.lineJoin='round';
-  return { canvas:c, ctx:ctx, w:w, h:h };
-}
-
-function redrawSigModalFromState() {
-  var key = sigModalState.key; if (!key) return;
-  var pad = initSigModalCanvas();
-  if (shiftSigData[key]) {
-    var img = new Image();
-    img.onload = function(){ pad.ctx.drawImage(img,0,0,pad.w,pad.h); };
-    img.src = shiftSigData[key];
-  }
-}
-
-function openSignaturePad(dayIdx, shiftIdx) {
-  var key = dayIdx+'-'+shiftIdx;
-  sigModalState.key = key; sigModalState.drawing=false; sigModalState.last=null;
-  sigModalState.hasInk = !!shiftSigData[key];
-  var sub = document.getElementById('sig-modal-sub');
-  if (sub) sub.textContent = DAYS[dayIdx]+' · Schicht '+(shiftIdx+1)+' · Querformat empfohlen';
-  var modal = document.getElementById('sig-modal');
-  modal.classList.add('open');
-  if (modal.requestFullscreen) { try{ modal.requestFullscreen(); }catch(_){} }
-  if (screen.orientation&&screen.orientation.lock) { try{ screen.orientation.lock('landscape'); }catch(_){} }
-  requestAnimationFrame(function(){ requestAnimationFrame(redrawSigModalFromState); });
-}
-
-function sigModalPos(e,c){ var r=c.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
-
-(function bindSigModalEvents(){
-  var c = document.getElementById('sig-modal-canvas'); if (!c) return;
-  c.addEventListener('pointerdown', function(e){
-    sigModalState.drawing=true; sigModalState.last=sigModalPos(e,c);
-    if (c.setPointerCapture) c.setPointerCapture(e.pointerId); e.preventDefault();
-  });
-  c.addEventListener('pointermove', function(e){
-    if (!sigModalState.drawing) return;
-    var ctx=c.getContext('2d'), p=sigModalPos(e,c), l=sigModalState.last;
-    ctx.beginPath(); ctx.moveTo(l[0],l[1]); ctx.lineTo(p[0],p[1]); ctx.stroke();
-    sigModalState.last=p; sigModalState.hasInk=true; e.preventDefault();
-  });
-  c.addEventListener('pointerup', function(e){
-    sigModalState.drawing=false;
-    if (c.releasePointerCapture){ try{ c.releasePointerCapture(e.pointerId); }catch(_){} }
-  });
-  c.addEventListener('pointercancel', function(){ sigModalState.drawing=false; });
-})();
-
-window.addEventListener('resize', function(){
-  var modal=document.getElementById('sig-modal');
-  if (modal&&modal.classList.contains('open')) redrawSigModalFromState();
-});
-document.addEventListener('fullscreenchange', function(){
-  var modal=document.getElementById('sig-modal');
-  if (modal&&modal.classList.contains('open')) redrawSigModalFromState();
-});
-if (screen.orientation&&screen.orientation.addEventListener) {
-  screen.orientation.addEventListener('change', function(){
-    var modal=document.getElementById('sig-modal');
-    if (modal&&modal.classList.contains('open')) redrawSigModalFromState();
-  });
-}
-
-function clearSigModal() {
-  var c=document.getElementById('sig-modal-canvas'), ctx=c.getContext('2d');
-  ctx.clearRect(0,0,c.width,c.height); sigModalState.hasInk=false;
-}
-function saveSigModal() {
-  var key=sigModalState.key; if (!key) return closeSigModal();
-  var c=document.getElementById('sig-modal-canvas');
-  shiftSigData[key]=sigModalState.hasInk ? c.toDataURL() : null;
-  redrawShiftSig(key); closeSigModal();
-}
-function closeSigModal() {
-  var modal=document.getElementById('sig-modal'); modal.classList.remove('open');
-  if (document.fullscreenElement&&document.exitFullscreen) document.exitFullscreen().catch(function(){});
-  if (screen.orientation&&screen.orientation.unlock){ try{ screen.orientation.unlock(); }catch(_){} }
-  sigModalState.key=null;
-}
-function clearShiftSig(dayIdx,shiftIdx) {
-  var key=dayIdx+'-'+shiftIdx; shiftSigData[key]=null; redrawShiftSig(key);
-}
-
-// ── COLLECT DATA ──
-function collectData() {
-  saveCurrentDayToCache();
-  var val = document.getElementById('inp-week').value || currentWeekVal();
-  var mon = getMondayFromWeekVal(val);
-  var days = DAYS.map(function(day,i){
-    var d = new Date(mon.getTime()+i*86400000);
-    var shifts = [];
-    for (var s=0; s<(shiftCounts[i]||1); s++) shifts.push(getShiftData(i,s));
-    return { day:day, date:fmtDateFull(d), shifts:shifts };
-  });
-  return {
-    name:      document.getElementById('inp-name').value||'',
-    abt:       selectedAbt,
-    weekStart: val,
-    weekLabel: weekLabelFromVal(val),
-    days:      days,
-    total:     document.getElementById('total-hours').textContent,
-    saved:     new Date().toISOString()
-  };
-}
-
-function saveWeek() {
-  var data = collectData();
-  if (!data.name){ showToast('Bitte Namen eingeben'); return; }
-  var all = JSON.parse(localStorage.getItem('stundenzettel')||'{}');
-  all[data.weekStart] = data;
-  localStorage.setItem('stundenzettel', JSON.stringify(all));
-  showToast('✅ Gespeichert!');
-}
-
-// ── PDF ──
-async function exportPDF() {
-  var jsPDF = window.jspdf.jsPDF;
-  var data = collectData();
-  var doc = new jsPDF({orientation:'p',unit:'mm',format:'a4'});
-  var ml=20, cw=170;
-  doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.text('Stundennachweis',ml,20);
-  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120);
-  doc.text('Lübbert Event Interiors',ml,26); doc.setTextColor(0);
-  doc.setFontSize(10);
-  doc.text('Name:',ml,38); doc.setFont('helvetica','bold'); doc.text(data.name||'—',ml+18,38);
-  doc.setFont('helvetica','normal'); doc.text('Abteilung:',ml+80,38);
-  doc.setFont('helvetica','bold'); doc.text(data.abt,ml+103,38);
-  doc.setFont('helvetica','normal'); doc.text('Woche:',ml,46);
-  doc.setFont('helvetica','bold'); doc.text(data.weekLabel,ml+18,46);
-  var y=56;
-  var cols=[36,18,14,14,16,10,24,38];
-  var headers=['Tag / Datum','Einsatzort','Von','Bis','Pause','Std','Name AL','Unterschrift AL'];
-  doc.setFillColor(30,30,28); doc.rect(ml,y,cw,8,'F');
-  doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica','bold');
-  var cx=ml+2;
-  headers.forEach(function(h,i){ doc.text(h,cx,y+5.5); cx+=cols[i]; });
-  doc.setTextColor(0); y+=8;
-  for (var idx=0; idx<data.days.length; idx++) {
-    var dd=data.days[idx];
-    var activeShifts=dd.shifts.filter(function(sh){ return sh.von&&sh.bis; });
-    if (!activeShifts.length) continue;
-    var dayNet=0;
-    activeShifts.forEach(function(sh){
-      var v=timeToMins(sh.von),b=timeToMins(sh.bis),p=parseInt(sh.pause)||0;
-      if(v!==null&&b!==null&&b>v) dayNet+=Math.max(3,(b-v-p)/60);
-    });
-    var hrsStr=dayNet%1===0?dayNet.toFixed(0):dayNet.toFixed(2);
-    var dayRows=activeShifts.length, dayHeight=dayRows*10;
-    if(y+dayHeight>268){
-      doc.addPage(); y=20;
-      doc.setFillColor(30,30,28); doc.rect(ml,y,cw,8,'F');
-      doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica','bold');
-      var hcx=ml+2;
-      headers.forEach(function(h,i){ doc.text(h,hcx,y+5.5); hcx+=cols[i]; });
-      doc.setTextColor(0); y+=8;
-    }
-    for (var row=0; row<dayRows; row++) {
-      if(idx%2===0){ doc.setFillColor(248,248,246); doc.rect(ml,y,cw,10,'F'); }
-      cx=ml+2;
-      if(row===0){ doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.text(dd.day+' '+dd.date,cx,y+5.5); }
-      cx+=cols[0]; doc.setFont('helvetica','normal');
-      doc.text((activeShifts[row].ort||''),cx,y+5.5); cx+=cols[1];
-      doc.text(activeShifts[row].von+' – '+activeShifts[row].bis,cx,y+5.5); cx+=cols[2]+cols[3];
-      doc.text(parseInt(activeShifts[row].pause)>0?activeShifts[row].pause+' min':'—',cx,y+5.5); cx+=cols[4];
-      if(row===0){ doc.setFont('helvetica','bold'); doc.text(hrsStr+'h',cx,y+5.5); }
-      cx+=cols[5]; doc.setFont('helvetica','normal');
-      doc.text((activeShifts[row].al||''),cx,y+5.5); cx+=cols[6];
-      if(activeShifts[row].sig){ try{ doc.addImage(activeShifts[row].sig,'PNG',cx,y+1,28,8); }catch(e){} }
-      doc.setDrawColor(220); doc.line(ml,y+10,ml+cw,y+10); y+=10;
-    }
-  }
-  y+=8; doc.setFont('helvetica','bold'); doc.setFontSize(11);
-  doc.text('Gesamtstunden:',ml,y);
-  doc.setTextColor(24,95,165); doc.text(data.total+' h',ml+38,y); doc.setTextColor(0);
-  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(150);
-  doc.text('Es werden nur Stunden angerechnet, die auf diesem Nachweis eingetragen und vom AL abgezeichnet sind.',ml,285);
-  doc.text('Einzureichen bis zum 20. Tag eines Monats.',ml,290);
-  doc.save('stundennachweis_'+data.weekStart+'.pdf');
-  showToast('📄 PDF gespeichert!');
-}
-
-// ── HISTORY ──
-function renderHistory() {
-  var list=document.getElementById('history-list');
-  var all=JSON.parse(localStorage.getItem('stundenzettel')||'{}');
-  var keys=Object.keys(all).sort().reverse();
-  if(!keys.length){
-    list.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><div>Noch keine Wochen gespeichert</div></div>';
-    return;
-  }
-  list.innerHTML=keys.map(function(k){
-    var w=all[k];
-    return '<div class="card" onclick="loadWeek(\''+k+'\')">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center">'+
-        '<div><div class="history-week">'+w.weekLabel+'</div>'+
-        '<div class="history-sub">'+w.name+' · <span class="badge">'+w.abt+'</span></div></div>'+
-        '<div style="text-align:right"><div class="history-hours">'+w.total+'h</div>'+
-        '<button onclick="deleteWeek(event,\''+k+'\')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;margin-top:4px">löschen</button>'+
-        '</div></div></div>';
-  }).join('');
-}
-
-function loadWeek(key) {
-  var all=JSON.parse(localStorage.getItem('stundenzettel')||'{}');
-  var w=all[key]; if(!w) return;
-  document.getElementById('inp-name').value=w.name;
-  document.getElementById('inp-week').value=w.weekStart;
-  selectedAbt=w.abt;
-  document.querySelectorAll('#chips-abt .chip').forEach(function(c){ c.classList.toggle('active',c.dataset.val===w.abt); });
-  // Reset state
-  shiftSigCanvases={}; shiftSigData={}; shiftValues={}; shiftCounts={}; activeDayIdx=null;
-  // Populate from stored data
-  w.days.forEach(function(d,i){
-    var shifts=d.shifts||[{von:d.von||'',bis:d.bis||'',pause:d.pause||'0',ort:d.ort||'',al:d.al||'',sig:d.sig||null}];
-    shiftCounts[i]=shifts.length;
-    shiftValues[i]=shifts.map(function(sh,s){
-      if(sh.sig) shiftSigData[i+'-'+s]=sh.sig;
-      return {von:sh.von||'',bis:sh.bis||'',ort:sh.ort||d.ort||'',al:sh.al||d.al||'',pause:sh.pause||'0'};
-    });
-  });
-  renderWeekStrip();
-  for (var i=0; i<DAYS.length; i++) updateBubble(i);
-  renderDayEditorArea();
-  calcTotal();
-  updateTopBarSub();
-  navigate('home');
-  showToast('Woche geladen');
-}
-
-function deleteWeek(e,key){
-  e.stopPropagation();
-  if(!confirm('Diese Woche löschen?')) return;
-  var all=JSON.parse(localStorage.getItem('stundenzettel')||'{}');
-  delete all[key];
-  localStorage.setItem('stundenzettel',JSON.stringify(all));
-  renderHistory(); showToast('🗑️ Gelöscht');
-}
-
-function showToast(msg){
-  var t=document.getElementById('toast');
-  t.textContent=msg; t.classList.add('show');
-  setTimeout(function(){ t.classList.remove('show'); },2200);
-}
-
-// ── INIT ──
-document.getElementById('inp-week').value=currentWeekVal();
-var sn=localStorage.getItem('stundenzettel_name');
-if(sn) document.getElementById('inp-name').value=sn;
-document.getElementById('inp-name').addEventListener('blur',function(e){
-  localStorage.setItem('stundenzettel_name',e.target.value);
-  updateTopBarSub();
-});
-buildDays();
-
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').then(function(reg){
-    reg.update();
-    if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
-    reg.addEventListener('updatefound',function(){
-      var nw=reg.installing; if(!nw) return;
-      nw.addEventListener('statechange',function(){
-        if(nw.state==='installed'&&navigator.serviceWorker.controller) nw.postMessage({type:'SKIP_WAITING'});
+    function loadWeek(key) {
+      var all = JSON.parse(localStorage.getItem('stundenzettel') || '{}');
+      var w = all[key]; if (!w) return;
+      document.getElementById('inp-name').value = w.name;
+      document.getElementById('inp-week').value = w.weekStart;
+      selectedAbt = w.abt;
+      document.querySelectorAll('#chips-abt .chip').forEach(function (c) { c.classList.toggle('active', c.dataset.val === w.abt); });
+      // Reset state
+      shiftSigCanvases = {}; shiftSigData = {}; shiftValues = {}; shiftCounts = {}; activeDayIdx = null;
+      // Populate from stored data
+      w.days.forEach(function (d, i) {
+        var shifts = d.shifts || [{ von: d.von || '', bis: d.bis || '', pause: d.pause || '0', ort: d.ort || '', al: d.al || '', sig: d.sig || null }];
+        shiftCounts[i] = shifts.length;
+        shiftValues[i] = shifts.map(function (sh, s) {
+          if (sh.sig) shiftSigData[i + '-' + s] = sh.sig;
+          return { von: sh.von || '', bis: sh.bis || '', ort: sh.ort || d.ort || '', al: sh.al || d.al || '', pause: sh.pause || '0' };
+        });
       });
+      renderWeekStrip();
+      for (var i = 0; i < DAYS.length; i++) updateBubble(i);
+      renderDayEditorArea();
+      calcTotal();
+      updateTopBarSub();
+      navigate('home');
+      showToast('Woche geladen');
+    }
+
+    function deleteWeek(e, key) {
+      e.stopPropagation();
+      if (!confirm('Diese Woche löschen?')) return;
+      var all = JSON.parse(localStorage.getItem('stundenzettel') || '{}');
+      delete all[key];
+      localStorage.setItem('stundenzettel', JSON.stringify(all));
+      renderHistory(); showToast('🗑️ Gelöscht');
+    }
+
+    function showToast(msg) {
+      var t = document.getElementById('toast');
+      t.textContent = msg; t.classList.add('show');
+      setTimeout(function () { t.classList.remove('show'); }, 2200);
+    }
+
+    // ── INIT ──
+    document.getElementById('inp-week').value = currentWeekVal();
+    var sn = localStorage.getItem('stundenzettel_name');
+    if (sn) document.getElementById('inp-name').value = sn;
+    document.getElementById('inp-name').addEventListener('blur', function (e) {
+      localStorage.setItem('stundenzettel_name', e.target.value);
+      updateTopBarSub();
     });
-    var reloaded=false;
-    navigator.serviceWorker.addEventListener('controllerchange',function(){
-      if(reloaded) return; reloaded=true; window.location.reload();
-    });
-  }).catch(function(){});
-}
-</script>
+    buildDays();
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        reg.update();
+        if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        reg.addEventListener('updatefound', function () {
+          var nw = reg.installing; if (!nw) return;
+          nw.addEventListener('statechange', function () {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) nw.postMessage({ type: 'SKIP_WAITING' });
+          });
+        });
+        var reloaded = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (reloaded) return; reloaded = true; window.location.reload();
+        });
+      }).catch(function () { });
+    }
+  </script>
 </body>
+
 </html>
