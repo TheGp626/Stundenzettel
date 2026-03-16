@@ -130,6 +130,22 @@
       background: var(--bg2)
     }
 
+    .settings-btn {
+      background: none;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 18px;
+      color: var(--text2);
+      flex-shrink: 0;
+      margin-left: 8px;
+    }
+
+    .settings-btn:active {
+      background: var(--bg2)
+    }
+
     /* ── TOP TABS ── */
     .top-tabs {
       display: flex;
@@ -353,6 +369,16 @@
       font-size: 13px;
       color: var(--accent-text);
       margin-left: 2px
+    }
+
+    .wtc-earnings {
+      font-size: 13px;
+      color: var(--accent-text);
+      font-weight: 500;
+      opacity: 0.8;
+      text-align: right;
+      margin-top: 2px;
+      display: none;
     }
 
     /* ── DAY EDITOR AREA ── */
@@ -707,6 +733,15 @@
       color: var(--accent)
     }
 
+    .history-earnings {
+      font-size: 12px;
+      color: var(--accent);
+      opacity: 0.8;
+      margin-top: 2px;
+      text-align: right;
+      display: none;
+    }
+
     .badge {
       display: inline-block;
       font-size: 11px;
@@ -726,6 +761,47 @@
     .empty-icon {
       font-size: 40px;
       margin-bottom: 12px
+    }
+
+    /* ── MONTHLY HISTORY ── */
+    .month-group {
+      margin-bottom: 24px;
+    }
+
+    .month-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 0 4px 8px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .month-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .month-stats {
+      font-size: 13px;
+      color: var(--text2);
+      margin-top: 2px;
+    }
+
+    .month-export-btn {
+      background: var(--bg2);
+      border: 0.5px solid var(--border2);
+      color: var(--text2);
+      padding: 6px 10px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .month-export-btn:active {
+      background: var(--bg3);
     }
 
     /* ── TOAST ── */
@@ -827,10 +903,13 @@
     <!-- ── GLOBAL TOP BAR ── -->
     <div class="top-bar">
       <div>
-        <div class="app-title">Stundennachweis</div>
+        <div class="app-title" id="app-title" onclick="titleTap()">Stundennachweis</div>
         <div class="app-sub" id="top-bar-sub">Lübbert Event Interiors</div>
       </div>
-      <button class="theme-btn" id="theme-btn" onclick="cycleTheme()">🌓</button>
+      <div style="display: flex;">
+        <button class="theme-btn" id="theme-btn" onclick="cycleTheme()">🌓</button>
+        <button class="settings-btn" id="settings-btn" onclick="openSettingsModal()">⚙️</button>
+      </div>
     </div>
 
     <!-- ── TOP NAVIGATION TABS ── -->
@@ -878,7 +957,10 @@
       <!-- Total chip -->
       <div class="week-total-chip">
         <span class="wtc-label">Gesamtstunden</span>
-        <div><span class="wtc-val" id="total-hours">0</span><span class="wtc-unit">h</span></div>
+        <div>
+          <div><span class="wtc-val" id="total-hours">0</span><span class="wtc-unit">h</span></div>
+          <div class="wtc-earnings" id="total-earnings"></div>
+        </div>
       </div>
 
       <!-- Day editor (or empty state) -->
@@ -929,6 +1011,29 @@
     </div>
   </div>
 
+  <!-- ── SETTINGS MODAL ── -->
+  <div class="sig-modal" id="settings-modal">
+    <div class="sig-modal-inner" style="max-width: 400px; padding: 20px;">
+      <div class="sig-modal-head" style="margin-bottom: 20px;">
+        <div>
+          <div class="sig-modal-title" style="font-size: 18px;">Einstellungen</div>
+          <div class="sig-modal-sub">Wird nicht exportiert</div>
+        </div>
+        <button class="theme-btn" onclick="closeSettingsModal()" title="Schließen">✕</button>
+      </div>
+      <div class="field">
+        <label>Stundenlohn (in €)</label>
+        <input type="number" step="0.5" id="inp-wage" class="meta-input" placeholder="0.00" />
+        <div style="font-size: 11px; color: var(--text3); margin-top: 6px;">
+          Wenn ausgefüllt, wird der geschätzte Verdienst im Verlauf und beim Erfassen angezeigt. Dieser Wert wird absolut vertraulich lokal im Browser gespeichert und taucht in keinem PDF auf.
+        </div>
+      </div>
+      <div class="sig-actions" style="margin-top: 24px;">
+        <button class="btn primary" onclick="saveSettingsModal()">Speichern</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ── CONFIG ──
     var BUCHHALTUNG_EMAIL = 'buchhaltung@peterluebbert.de';
@@ -948,6 +1053,44 @@
 
     // legacy stubs kept for compat
     var sigModalState = { key: null, drawing: false, last: null, hasInk: false };
+
+    // ── SETTINGS ──
+    var hourlyWage = parseFloat(localStorage.getItem('stundenzettel_wage')) || 0;
+    var monsterMode = localStorage.getItem('stundenzettel_monster') === 'true';
+    var MONSTER_PRICE = 1.84; // 1,59€ + 0,25€ Pfand
+
+    // ── EASTER EGG: MONSTER MODE ──
+    var titleTapCount = 0;
+    var titleTapTimer = null;
+    function titleTap() {
+      titleTapCount++;
+      clearTimeout(titleTapTimer);
+      titleTapTimer = setTimeout(function () { titleTapCount = 0; }, 800);
+      if (titleTapCount >= 7) {
+        titleTapCount = 0;
+        monsterMode = !monsterMode;
+        localStorage.setItem('stundenzettel_monster', monsterMode);
+        if (monsterMode) {
+          showToast('🟢🖤 MONSTER MODE AKTIVIERT! 🥤');
+        } else {
+          showToast('Monster Mode deaktiviert');
+        }
+        calcTotal();
+        if (document.getElementById('page-history').classList.contains('active')) {
+          renderHistory();
+        }
+      }
+    }
+
+    function formatEarnings(totalHours) {
+      if (hourlyWage <= 0 || totalHours <= 0) return null;
+      var euros = totalHours * hourlyWage;
+      if (monsterMode) {
+        var cans = Math.floor(euros / MONSTER_PRICE);
+        return '≈ ' + cans + ' 🥤';
+      }
+      return '≈ ' + euros.toFixed(2).replace('.', ',') + ' €';
+    }
 
     // ── THEME ──
     var THEMES = ['auto', 'light', 'dark'];
@@ -1297,7 +1440,19 @@
         }
       }
       var t = document.getElementById('total-hours');
-      if (t) t.textContent = total % 1 === 0 ? total.toFixed(0) : total.toFixed(2);
+      var tr = total % 1 === 0 ? total.toFixed(0) : total.toFixed(2);
+      if (t) t.textContent = tr;
+
+      var e = document.getElementById('total-earnings');
+      if (e) {
+        var earningsText = formatEarnings(total);
+        if (earningsText) {
+          e.textContent = earningsText;
+          e.style.display = 'block';
+        } else {
+          e.style.display = 'none';
+        }
+      }
     }
 
     // ── DEPT CHIPS ──
@@ -1428,6 +1583,38 @@
     }
     function clearShiftSig(dayIdx, shiftIdx) {
       var key = dayIdx + '-' + shiftIdx; shiftSigData[key] = null; redrawShiftSig(key);
+    }
+
+    // ── SETTINGS MODAL ──
+    function openSettingsModal() {
+      var modal = document.getElementById('settings-modal');
+      var wageInput = document.getElementById('inp-wage');
+      if (hourlyWage > 0) wageInput.value = hourlyWage;
+      else wageInput.value = '';
+      modal.classList.add('open');
+    }
+
+    function closeSettingsModal() {
+      var modal = document.getElementById('settings-modal');
+      modal.classList.remove('open');
+    }
+
+    function saveSettingsModal() {
+      var wageInput = document.getElementById('inp-wage');
+      var val = parseFloat(wageInput.value);
+      if (!isNaN(val) && val > 0) {
+        hourlyWage = val;
+        localStorage.setItem('stundenzettel_wage', hourlyWage);
+      } else {
+        hourlyWage = 0;
+        localStorage.removeItem('stundenzettel_wage');
+      }
+      closeSettingsModal();
+      calcTotal();
+      if (document.getElementById('page-history').classList.contains('active')) {
+        renderHistory();
+      }
+      showToast('Einstellungen gespeichert');
     }
 
     // ── COLLECT DATA ──
@@ -1629,6 +1816,15 @@
       showToast('📧 PDF gespeichert – E-Mail wird geöffnet …');
     }
 
+    // ── MONTHLY GROUPING HELPERS ──
+    function getMonthKeyFromWeek(weekStart) {
+      var d = getMondayFromWeekVal(weekStart);
+      var m = d.getMonth();
+      var y = d.getFullYear();
+      var months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+      return { key: y + '-' + pad(m + 1), label: months[m] + ' ' + y };
+    }
+
     // ── HISTORY ──
     function renderHistory() {
       var list = document.getElementById('history-list');
@@ -1638,16 +1834,203 @@
         list.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div>Noch keine Wochen gespeichert</div></div>';
         return;
       }
-      list.innerHTML = keys.map(function (k) {
+
+      // Group by month
+      var months = {};
+      keys.forEach(function (k) {
         var w = all[k];
-        return '<div class="card" onclick="loadWeek(\'' + k + '\')">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center">' +
-          '<div><div class="history-week">' + w.weekLabel + '</div>' +
-          '<div class="history-sub">' + w.name + ' · <span class="badge">' + w.abt + '</span></div></div>' +
-          '<div style="text-align:right"><div class="history-hours">' + w.total + 'h</div>' +
-          '<button onclick="deleteWeek(event,\'' + k + '\')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;margin-top:4px">löschen</button>' +
-          '</div></div></div>';
-      }).join('');
+        var m = getMonthKeyFromWeek(w.weekStart);
+        if (!months[m.key]) months[m.key] = { label: m.label, weeks: [], totalHours: 0 };
+        months[m.key].weeks.push(w);
+        months[m.key].totalHours += parseFloat((w.total || '0').replace(',', '.'));
+      });
+
+      var html = '';
+      Object.keys(months).sort().reverse().forEach(function (mKey) {
+        var m = months[mKey];
+        var hrs = m.totalHours % 1 === 0 ? m.totalHours.toFixed(0) : m.totalHours.toFixed(2);
+        
+        var earningsHtml = '';
+        var mEarnings = formatEarnings(m.totalHours);
+        if (mEarnings) {
+          earningsHtml = ' | ' + mEarnings;
+        }
+
+        html += '<div class="month-group">';
+        html += '<div class="month-header">';
+        html += '<div><div class="month-title">' + m.label + '</div><div class="month-stats">' + hrs + ' h gesamt' + earningsHtml + '</div></div>';
+        html += '<button class="month-export-btn" onclick="exportMonthlyPDF(\'' + mKey + '\')">📄 Monat exportieren</button>';
+        html += '</div>';
+
+        html += m.weeks.map(function (w) {
+          var k = w.weekStart;
+          var totalHours = parseFloat((w.total || '0').replace(',', '.'));
+          var wEarningsHtml = '';
+          var wEarnings = formatEarnings(totalHours);
+          if (wEarnings) {
+            wEarningsHtml = '<div class="history-earnings" style="display:block">' + wEarnings + '</div>';
+          }
+          
+          return '<div class="card" onclick="loadWeek(\'' + k + '\')">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center">' +
+            '<div><div class="history-week">' + w.weekLabel + '</div>' +
+            '<div class="history-sub">' + w.name + ' · <span class="badge">' + w.abt + '</span></div></div>' +
+            '<div style="text-align:right"><div class="history-hours">' + w.total + 'h</div>' +
+            wEarningsHtml +
+            '<button onclick="deleteWeek(event,\'' + k + '\')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;margin-top:4px">löschen</button>' +
+            '</div></div></div>';
+        }).join('');
+        
+        html += '</div>';
+      });
+      list.innerHTML = html;
+    }
+
+    async function exportMonthlyPDF(monthKey) {
+      var all = JSON.parse(localStorage.getItem('stundenzettel') || '{}');
+      var keys = Object.keys(all).sort();
+      var monthWeeks = [];
+      var mLabel = '';
+      var mTotal = 0;
+      var name = '';
+      var abt = '';
+      
+      keys.forEach(function (k) {
+        var w = all[k];
+        var m = getMonthKeyFromWeek(w.weekStart);
+        if (m.key === monthKey) {
+          monthWeeks.push(w);
+          mLabel = m.label;
+          mTotal += parseFloat((w.total || '0').replace(',', '.'));
+          if (!name) name = w.name;
+          if (!abt) abt = w.abt;
+        }
+      });
+
+      if (monthWeeks.length === 0) return;
+
+      var jsPDF = window.jspdf.jsPDF;
+      var doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      var ml = 20, cw = 170;
+
+      // Cover Page
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('Monatsübersicht', ml, 25);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(120);
+      doc.text('Lübbert Event Interiors', ml, 32); doc.setTextColor(0);
+      
+      doc.setFontSize(11);
+      doc.text('Monat:', ml, 48); doc.setFont('helvetica', 'bold'); doc.text(mLabel, ml + 25, 48);
+      doc.setFont('helvetica', 'normal'); doc.text('Name:', ml, 56); doc.setFont('helvetica', 'bold'); doc.text(name || '—', ml + 25, 56);
+      doc.setFont('helvetica', 'normal'); doc.text('Abteilung:', ml, 64); doc.setFont('helvetica', 'bold'); doc.text(abt || '—', ml + 25, 64);
+
+      var y = 80;
+      doc.setFillColor(30, 30, 28); doc.rect(ml, y, cw, 10, 'F');
+      doc.setTextColor(255); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+      doc.text('Kalenderwoche', ml + 5, y + 6.5);
+      doc.text('Zeitraum', ml + 40, y + 6.5);
+      doc.text('Stunden', ml + 140, y + 6.5);
+      doc.setTextColor(0); y += 10;
+
+      monthWeeks.forEach(function(w, i) {
+        if (i % 2 === 0) { doc.setFillColor(248, 248, 246); doc.rect(ml, y, cw, 10, 'F'); }
+        doc.setFont('helvetica', 'bold');
+        var parts = w.weekStart.split('-W');
+        doc.text('KW ' + parseInt(parts[1]), ml + 5, y + 6.5);
+        doc.setFont('helvetica', 'normal');
+        doc.text(w.weekLabel.split('·')[1].trim(), ml + 40, y + 6.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text(w.total + ' h', ml + 140, y + 6.5);
+        doc.setDrawColor(220); doc.line(ml, y + 10, ml + cw, y + 10);
+        y += 10;
+      });
+
+      y += 10;
+      doc.setFontSize(14);
+      doc.text('Gesamtstunden:', ml, y);
+      doc.setTextColor(24, 95, 165); doc.text((mTotal % 1 === 0 ? mTotal.toFixed(0) : mTotal.toFixed(2)) + ' h', ml + 50, y); doc.setTextColor(0);
+
+      // Append weekly pages
+      monthWeeks.forEach(function(data) {
+        doc.addPage();
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.text('Stundennachweis', ml, 20);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(120);
+        doc.text('Lübbert Event Interiors', ml, 26); doc.setTextColor(0);
+        doc.setFontSize(10);
+        doc.text('Name:', ml, 38); doc.setFont('helvetica', 'bold'); doc.text(data.name || '—', ml + 18, 38);
+        doc.setFont('helvetica', 'normal'); doc.text('Abteilung:', ml + 80, 38);
+        doc.setFont('helvetica', 'bold'); doc.text(data.abt, ml + 103, 38);
+        doc.setFont('helvetica', 'normal'); doc.text('Woche:', ml, 46);
+        doc.setFont('helvetica', 'bold'); doc.text(data.weekLabel, ml + 18, 46);
+        var wy = 56;
+        var cols = [36, 18, 14, 14, 16, 10, 24, 38];
+        var headers = ['Tag / Datum', 'Einsatzort', 'Von', 'Bis', 'Pause', 'Std', 'Name AL', 'Unterschrift AL'];
+        doc.setFillColor(30, 30, 28); doc.rect(ml, wy, cw, 8, 'F');
+        doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+        var cx = ml + 2;
+        headers.forEach(function (h, j) { doc.text(h, cx, wy + 5.5); cx += cols[j]; });
+        doc.setTextColor(0); wy += 8;
+        for (var idx = 0; idx < data.days.length; idx++) {
+          var dd = data.days[idx];
+          var activeShifts = dd.shifts.filter(function (sh) { return sh.von && sh.bis; });
+          if (!activeShifts.length) continue;
+          var dayNet = 0;
+          activeShifts.forEach(function (sh) {
+            var v = timeToMins(sh.von), b = timeToMins(sh.bis), p = parseInt(sh.pause) || 0;
+            if (v !== null && b !== null && b > v) dayNet += Math.max(3, (b - v - p) / 60);
+          });
+          var hrsStr = dayNet % 1 === 0 ? dayNet.toFixed(0) : dayNet.toFixed(2);
+          var dayRows = activeShifts.length, dayHeight = dayRows * 10;
+          if (wy + dayHeight > 268) {
+            doc.addPage(); wy = 20;
+            doc.setFillColor(30, 30, 28); doc.rect(ml, wy, cw, 8, 'F');
+            doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+            var hcx = ml + 2;
+            headers.forEach(function (h, j) { doc.text(h, hcx, wy + 5.5); hcx += cols[j]; });
+            doc.setTextColor(0); wy += 8;
+          }
+          for (var row = 0; row < dayRows; row++) {
+            if (idx % 2 === 0) { doc.setFillColor(248, 248, 246); doc.rect(ml, wy, cw, 10, 'F'); }
+            cx = ml + 2;
+            if (row === 0) { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.text(dd.day + ' ' + dd.date, cx, wy + 5.5); }
+            cx += cols[0]; doc.setFont('helvetica', 'normal');
+            doc.text((activeShifts[row].ort || ''), cx, wy + 5.5); cx += cols[1];
+            doc.text(activeShifts[row].von + ' – ' + activeShifts[row].bis, cx, wy + 5.5); cx += cols[2] + cols[3];
+            doc.text(parseInt(activeShifts[row].pause) > 0 ? activeShifts[row].pause + ' min' : '—', cx, wy + 5.5); cx += cols[4];
+            if (row === 0) { doc.setFont('helvetica', 'bold'); doc.text(hrsStr + 'h', cx, wy + 5.5); }
+            cx += cols[5]; doc.setFont('helvetica', 'normal');
+            doc.text((activeShifts[row].al || ''), cx, wy + 5.5); cx += cols[6];
+            if (activeShifts[row].sig) { try { doc.addImage(activeShifts[row].sig, 'PNG', cx, wy + 1, 28, 8); } catch (e) { } }
+            doc.setDrawColor(220); doc.line(ml, wy + 10, ml + cw, wy + 10); wy += 10;
+          }
+        }
+        wy += 8; doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+        doc.text('Wochenstunden:', ml, wy);
+        doc.setTextColor(24, 95, 165); doc.text(data.total + ' h', ml + 35, wy); doc.setTextColor(0);
+      });
+
+      var fileName = 'stundennachweis_' + monthKey.replace('-', '_') + '_' + (name || 'Mitarbeiter').replace(/\s+/g, '_') + '.pdf';
+
+      if (navigator.canShare) {
+        try {
+          var pdfBlob = doc.output('blob');
+          var file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: 'Monatsübersicht ' + mLabel,
+              text: 'Stundennachweise für ' + mLabel
+            });
+            showToast('✅ PDF geteilt!');
+            return;
+          }
+        } catch (err) {
+          if (err.name !== 'AbortError') console.warn('Share failed, falling back', err);
+          else { showToast('Teilen abgebrochen'); return; }
+        }
+      }
+
+      doc.save(fileName);
+      showToast('📄 Monats-PDF gespeichert!');
     }
 
     function loadWeek(key) {
