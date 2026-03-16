@@ -115,7 +115,7 @@
       margin-top: 1px
     }
 
-    .theme-btn {
+    .icon-btn {
       background: none;
       border: 0.5px solid var(--border2);
       border-radius: var(--radius);
@@ -123,10 +123,10 @@
       cursor: pointer;
       font-size: 18px;
       color: var(--text2);
-      flex-shrink: 0
+      flex-shrink: 0;
     }
 
-    .theme-btn:active {
+    .icon-btn:active {
       background: var(--bg2)
     }
 
@@ -139,7 +139,6 @@
       font-size: 18px;
       color: var(--text2);
       flex-shrink: 0;
-      margin-left: 8px;
     }
 
     .settings-btn:active {
@@ -906,8 +905,7 @@
         <div class="app-title" id="app-title" onclick="titleTap()">Stundennachweis</div>
         <div class="app-sub" id="top-bar-sub">Lübbert Event Interiors</div>
       </div>
-      <div style="display: flex;">
-        <button class="theme-btn" id="theme-btn" onclick="cycleTheme()">🌓</button>
+      <div>
         <button class="settings-btn" id="settings-btn" onclick="openSettingsModal()">⚙️</button>
       </div>
     </div>
@@ -998,7 +996,7 @@
           <div class="sig-modal-title">Unterschrift erfassen</div>
           <div class="sig-modal-sub" id="sig-modal-sub">Querformat empfohlen</div>
         </div>
-        <button class="theme-btn" onclick="closeSigModal()" title="Schließen">✕</button>
+        <button class="icon-btn" onclick="closeSigModal()" title="Schließen">✕</button>
       </div>
       <div class="sig-pad-wrap">
         <canvas id="sig-modal-canvas"></canvas>
@@ -1019,14 +1017,32 @@
           <div class="sig-modal-title" style="font-size: 18px;">Einstellungen</div>
           <div class="sig-modal-sub">Wird nicht exportiert</div>
         </div>
-        <button class="theme-btn" onclick="closeSettingsModal()" title="Schließen">✕</button>
+        <button class="icon-btn" onclick="closeSettingsModal()" title="Schließen">✕</button>
       </div>
       <div class="field">
+        <label>Abrechnungs-Stichtag</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="font-size: 14px; color: var(--text2);">Immer bis zum</span>
+          <input type="number" min="1" max="31" step="1" id="inp-cutoff" class="meta-input" style="width: 70px; text-align: center;" placeholder="20" />
+          <span style="font-size: 14px; color: var(--text2);">. des Monats</span>
+        </div>
+        <div style="font-size: 11px; color: var(--text3); margin-top: 6px;">
+          Bestimmt, wie Wochen im Verlauf zu Monaten zusammengefasst werden. Beispiel (Stichtag = 20): Alles ab dem 21. zählt schon zum nächsten Monat.
+        </div>
+      </div>
+      <div class="field" style="margin-top: 16px;">
         <label>Stundenlohn (in €)</label>
         <input type="number" step="0.5" id="inp-wage" class="meta-input" placeholder="0.00" />
         <div style="font-size: 11px; color: var(--text3); margin-top: 6px;">
           Wenn ausgefüllt, wird der geschätzte Verdienst im Verlauf und beim Erfassen angezeigt. Dieser Wert wird absolut vertraulich lokal im Browser gespeichert und taucht in keinem PDF auf.
         </div>
+      </div>
+      <div class="field" style="margin-top: 16px;">
+        <label>Erscheinungsbild</label>
+        <button class="btn" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--bg); border: 0.5px solid var(--border2);" onclick="cycleTheme()">
+          <span style="font-size: 14px; font-weight: normal;">Modus (Hell / Dunkel / Auto)</span>
+          <span class="theme-btn-icon" style="font-size: 18px;">🌓</span>
+        </button>
       </div>
       <div class="sig-actions" style="margin-top: 24px;">
         <button class="btn primary" onclick="saveSettingsModal()">Speichern</button>
@@ -1056,6 +1072,7 @@
 
     // ── SETTINGS ──
     var hourlyWage = parseFloat(localStorage.getItem('stundenzettel_wage')) || 0;
+    var billingCutoff = parseInt(localStorage.getItem('stundenzettel_cutoff')) || 31; // Default to end of month
     var monsterMode = localStorage.getItem('stundenzettel_monster') === 'true';
     var MONSTER_PRICE = 1.84; // 1,59€ + 0,25€ Pfand
 
@@ -1100,7 +1117,7 @@
 
     function applyTheme(t) {
       document.documentElement.setAttribute('data-theme', t);
-      document.querySelectorAll('.theme-btn').forEach(function (b) { b.textContent = ICONS[t]; });
+      document.querySelectorAll('.theme-btn-icon').forEach(function (b) { b.textContent = ICONS[t]; });
     }
     function cycleTheme() {
       var idx = (THEMES.indexOf(currentTheme) + 1) % THEMES.length;
@@ -1589,8 +1606,11 @@
     function openSettingsModal() {
       var modal = document.getElementById('settings-modal');
       var wageInput = document.getElementById('inp-wage');
-      if (hourlyWage > 0) wageInput.value = hourlyWage;
-      else wageInput.value = '';
+      var cutoffInput = document.getElementById('inp-cutoff');
+      
+      wageInput.value = hourlyWage > 0 ? hourlyWage : '';
+      cutoffInput.value = billingCutoff < 31 ? billingCutoff : ''; // Empty means default/end of month
+      
       modal.classList.add('open');
     }
 
@@ -1601,14 +1621,26 @@
 
     function saveSettingsModal() {
       var wageInput = document.getElementById('inp-wage');
-      var val = parseFloat(wageInput.value);
-      if (!isNaN(val) && val > 0) {
-        hourlyWage = val;
+      var cutoffInput = document.getElementById('inp-cutoff');
+      
+      var wVal = parseFloat(wageInput.value);
+      if (!isNaN(wVal) && wVal > 0) {
+        hourlyWage = wVal;
         localStorage.setItem('stundenzettel_wage', hourlyWage);
       } else {
         hourlyWage = 0;
         localStorage.removeItem('stundenzettel_wage');
       }
+
+      var cVal = parseInt(cutoffInput.value);
+      if (!isNaN(cVal) && cVal >= 1 && cVal < 31) {
+        billingCutoff = cVal;
+        localStorage.setItem('stundenzettel_cutoff', billingCutoff);
+      } else {
+        billingCutoff = 31;
+        localStorage.removeItem('stundenzettel_cutoff');
+      }
+
       closeSettingsModal();
       calcTotal();
       if (document.getElementById('page-history').classList.contains('active')) {
@@ -1818,9 +1850,20 @@
 
     // ── MONTHLY GROUPING HELPERS ──
     function getMonthKeyFromWeek(weekStart) {
-      var d = getMondayFromWeekVal(weekStart);
-      var m = d.getMonth();
-      var y = d.getFullYear();
+      // Use Friday of the week as the "anchor" day to determine which month the week belongs to
+      var mon = getMondayFromWeekVal(weekStart);
+      var fri = new Date(mon.getTime() + 4 * 86400000);
+      
+      var m = fri.getMonth();
+      var y = fri.getFullYear();
+      var dd = fri.getDate();
+      
+      // If the anchor day is past the billing cutoff, it counts towards the NEXT month
+      if (billingCutoff < 31 && dd > billingCutoff) {
+        m++;
+        if (m > 11) { m = 0; y++; }
+      }
+      
       var months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
       return { key: y + '-' + pad(m + 1), label: months[m] + ' ' + y };
     }
