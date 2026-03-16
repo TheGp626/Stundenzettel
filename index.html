@@ -1589,7 +1589,18 @@
     function saveSigModal() {
       var key = sigModalState.key; if (!key) return closeSigModal();
       var c = document.getElementById('sig-modal-canvas');
-      shiftSigData[key] = sigModalState.hasInk ? c.toDataURL() : null;
+      if (sigModalState.hasInk) {
+        var scale = Math.min(1, 400 / c.width);
+        var tempC = document.createElement('canvas');
+        tempC.width = c.width * scale;
+        tempC.height = c.height * scale;
+        var tempCtx = tempC.getContext('2d');
+        tempCtx.scale(scale, scale);
+        tempCtx.drawImage(c, 0, 0);
+        shiftSigData[key] = tempC.toDataURL('image/png', 0.8);
+      } else {
+        shiftSigData[key] = null;
+      }
       redrawShiftSig(key); closeSigModal();
     }
     function closeSigModal() {
@@ -1681,9 +1692,42 @@
     }
 
     // ── PDF ──
+    function compressSignature(base64, callback) {
+      if (!base64 || base64.length < 50000) return callback(base64); // Already small enough (probably downscaled)
+      var img = new Image();
+      img.onload = function() {
+        var scale = Math.min(1, 400 / img.width);
+        var canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        var ctx = canvas.getContext('2d');
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+        callback(canvas.toDataURL('image/png', 0.8));
+      };
+      img.onerror = function() { callback(base64); }; // Fallback
+      img.src = base64;
+    }
+
     async function exportPDF() {
-      var jsPDF = window.jspdf.jsPDF;
+      // Find all signatures and compress them first
       var data = collectData();
+      var sigPromises = [];
+      data.days.forEach(function (dd) {
+        dd.shifts.forEach(function (sh) {
+          if (sh.sig) {
+            sigPromises.push(new Promise(function(resolve) {
+              compressSignature(sh.sig, function(compressed) {
+                sh.sig = compressed;
+                resolve();
+              });
+            }));
+          }
+        });
+      });
+      await Promise.all(sigPromises);
+
+      var jsPDF = window.jspdf.jsPDF;
       var doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
       var ml = 20, cw = 170;
       doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.text('Stundennachweis', ml, 20);
