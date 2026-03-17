@@ -11,6 +11,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <title>Stundennachweis</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     /* ── TOKENS ── */
     :root {
@@ -797,6 +798,31 @@
       background: var(--bg3);
     }
 
+    /* ── CHART ── */
+    .chart-container {
+      margin-bottom: 24px;
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 12px;
+    }
+    canvas#historyChart {
+      width: 100% !important;
+      height: 180px !important;
+    }
+
+    /* ── DEPT MANAGEMENT ── */
+    .dept-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 0.5px solid var(--border);
+    }
+    .dept-item:last-child {
+      border-bottom: none;
+    }
+
     /* ── TOAST ── */
     .toast {
       position: fixed;
@@ -927,15 +953,6 @@
             <input type="week" id="inp-week" class="meta-input" />
           </div>
         </div>
-        <div class="dept-label">Abteilung</div>
-        <div class="chips" id="chips-abt">
-          <div class="chip" data-val="AL (Aufbauleitung)">AL</div>
-          <div class="chip active" data-val="MA für Auf-/Abbau">MA</div>
-          <div class="chip" data-val="Floristik">Floristik</div>
-          <div class="chip" data-val="Lager">Lager</div>
-          <div class="chip" data-val="Stoffe">Stoffe</div>
-          <div class="chip" data-val="Tischlerei">Tischlerei</div>
-        </div>
       </div>
 
       <div class="week-strip-section">
@@ -966,6 +983,9 @@
         <div class="history-page-header">
           <div class="history-page-title">Verlauf</div>
           <div class="history-page-sub">Gespeicherte Wochen</div>
+        </div>
+        <div class="chart-container">
+          <canvas id="historyChart"></canvas>
         </div>
         <div id="history-list"></div>
       </div>
@@ -998,7 +1018,7 @@
 
   <!-- ── SETTINGS MODAL ── -->
   <div class="sig-modal" id="settings-modal">
-    <div class="sig-modal-inner" style="max-width: 400px; padding: 20px;">
+    <div class="sig-modal-inner" style="max-width: 440px; padding: 20px; max-height: 90vh; overflow-y: auto;">
       <div class="sig-modal-head" style="margin-bottom: 20px;">
         <div>
           <div class="sig-modal-title" style="font-size: 18px;">Einstellungen</div>
@@ -1037,6 +1057,27 @@
         </button>
       </div>
       <div class="field" style="margin-top: 24px; border-top: 0.5px solid var(--border); padding-top: 16px;">
+        <label>Abteilungen verwalten</label>
+        <div id="settings-dept-list" style="margin-bottom: 12px;"></div>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="inp-new-dept" class="meta-input" placeholder="Neue Abteilung..." />
+          <button class="btn" style="flex: 0 0 auto; width: auto; padding: 0 16px;" onclick="addDepartment()">＋</button>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top: 24px; border-top: 0.5px solid var(--border); padding-top: 16px;">
+        <label>Daten-Sicherung (Backup)</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <button class="btn" onclick="exportBackup()">📥 Export JSON</button>
+          <button class="btn" onclick="document.getElementById('inp-import').click()">📤 Import JSON</button>
+          <input type="file" id="inp-import" style="display: none;" accept=".json" onchange="importBackup(event)" />
+        </div>
+        <div style="font-size: 11px; color: var(--text3); margin-top: 6px;">
+          Sichere deine gesamten Daten in einer Datei oder stelle sie wieder her.
+        </div>
+      </div>
+
+      <div class="field" style="margin-top: 24px; border-top: 0.5px solid var(--border); padding-top: 16px;">
         <label>Exportieren</label>
         <div style="display: flex; gap: 8px;">
           <select id="export-type" class="meta-input" style="flex: 1;">
@@ -1054,10 +1095,14 @@
   <script>
     // ── CONFIG ──
     var BUCHHALTUNG_EMAIL = 'buchhaltung@peterluebbert.de';
-
     var DAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
     var DAY_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-    var selectedAbt = 'MA für Auf-/Abbau';
+
+    var defaultDepts = ['AL (Aufbauleitung)', 'MA für Auf-/Abbau', 'Floristik', 'Lager', 'Stoffe', 'Tischlerei'];
+    var departments = JSON.parse(localStorage.getItem('stundenzettel_depts')) || defaultDepts;
+    var selectedAbt = localStorage.getItem('stundenzettel_active_dept') || departments[0] || 'MA für Auf-/Abbau';
+
+    var historyChart = null;
 
     // ── DATA STORES ──
     var shiftSigCanvases = {};
@@ -1131,7 +1176,10 @@
       document.querySelectorAll('.top-tab').forEach(function (b) { b.classList.remove('active'); });
       document.getElementById('page-' + page).classList.add('active');
       document.getElementById('nav-' + page).classList.add('active');
-      if (page === 'history') renderHistory();
+      if (page === 'history') {
+        renderHistory();
+        renderHistoryChart();
+      }
     }
 
     // ── DATE HELPERS ──
@@ -1471,12 +1519,7 @@
       }
     }
 
-    // ── DEPT CHIPS ──
-    document.getElementById('chips-abt').addEventListener('click', function (e) {
-      var chip = e.target.closest('.chip'); if (!chip) return;
-      document.querySelectorAll('#chips-abt .chip').forEach(function (c) { c.classList.remove('active'); });
-      chip.classList.add('active'); selectedAbt = chip.dataset.val;
-    });
+    // ── DEPT SELECTION REMOVED FROM HOME ──
 
     document.getElementById('inp-week').addEventListener('change', buildDays);
 
@@ -1621,8 +1664,9 @@
       var cutoffInput = document.getElementById('inp-cutoff');
 
       wageInput.value = hourlyWage > 0 ? hourlyWage : '';
-      cutoffInput.value = billingCutoff < 31 ? billingCutoff : ''; // Empty means default/end of month
+      cutoffInput.value = billingCutoff < 31 ? billingCutoff : ''; 
 
+      renderSettingsDepts();
       modal.classList.add('open');
     }
 
@@ -1657,8 +1701,130 @@
       calcTotal();
       if (document.getElementById('page-history').classList.contains('active')) {
         renderHistory();
+        renderHistoryChart();
       }
       showToast('Einstellungen gespeichert');
+    }
+
+    function renderSettingsDepts() {
+      var list = document.getElementById('settings-dept-list');
+      if (!list) return;
+      list.innerHTML = departments.map(function(d, i) {
+        var isActive = d === selectedAbt;
+        return '<div class="dept-item" onclick="selectDepartment(\'' + d.replace(/'/g, "\\'") + '\')" style="cursor:pointer; ' + (isActive ? 'background: var(--accent-bg); border-radius: var(--radius); padding: 8px 10px; margin: 0 -10px;' : '') + '">' +
+               '<div style="display:flex; align-items:center; gap:8px;">' +
+               '<span style="font-size:16px;">' + (isActive ? '🔘' : '⚪') + '</span>' +
+               '<span style="' + (isActive ? 'font-weight:600; color:var(--accent-text);' : '') + '">' + d + '</span>' +
+               '</div>' +
+               '<button onclick="event.stopPropagation(); deleteDepartment(' + i + ')" style="background:none; border:none; color:var(--danger); cursor:pointer; padding: 4px 8px;">✕</button></div>';
+      }).join('');
+    }
+
+    function selectDepartment(dept) {
+      selectedAbt = dept;
+      localStorage.setItem('stundenzettel_active_dept', dept);
+      renderSettingsDepts();
+      updateTopBarSub();
+    }
+
+    function addDepartment() {
+      var inp = document.getElementById('inp-new-dept');
+      var val = inp.value.trim();
+      if (!val) return;
+      departments.push(val);
+      localStorage.setItem('stundenzettel_depts', JSON.stringify(departments));
+      inp.value = '';
+      renderSettingsDepts();
+      renderDeptChips();
+    }
+
+    function deleteDepartment(idx) {
+      if (departments.length <= 1) { showToast('Mindestens eine Abteilung muss bleiben'); return; }
+      departments.splice(idx, 1);
+      localStorage.setItem('stundenzettel_depts', JSON.stringify(departments));
+      renderSettingsDepts();
+      renderDeptChips();
+    }
+
+    function exportBackup() {
+      var backup = {
+        meta: { date: new Date().toISOString(), version: '1.1' },
+        data: {}
+      };
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k.startsWith('stundenzettel')) {
+          backup.data[k] = localStorage.getItem(k);
+        }
+      }
+      var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'stundenzettel_backup_' + new Date().toISOString().split('T')[0] + '.json';
+      a.click();
+      showToast('Backup exportiert');
+    }
+
+    function importBackup(e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          var backup = JSON.parse(evt.target.result);
+          if (!backup.data) throw new Error('Invalid backup');
+          if (confirm('Sollen die importierten Daten die vorhandenen überschreiben?')) {
+            Object.keys(backup.data).forEach(function(k) {
+              localStorage.setItem(k, backup.data[k]);
+            });
+            window.location.reload();
+          }
+        } catch (err) {
+          showToast('Fehler beim Import');
+          console.error(err);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function renderHistoryChart() {
+      var ctx = document.getElementById('historyChart');
+      if (!ctx) return;
+      
+      var all = JSON.parse(localStorage.getItem('stundenzettel') || '{}');
+      var keys = Object.keys(all).sort().slice(-10); // Last 10 weeks
+      
+      var labels = keys.map(function(k) { return 'KW ' + k.split('-W')[1]; });
+      var data = keys.map(function(k) { return parseFloat((all[k].total || '0').replace(',', '.')); });
+
+      if (historyChart) historyChart.destroy();
+
+      historyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Wochenstunden',
+            data: data,
+            backgroundColor: 'rgba(24, 95, 165, 0.4)',
+            borderColor: 'rgba(24, 95, 165, 1)',
+            borderWidth: 1,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+            x: { grid: { display: false } }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
     }
 
     function handleSettingsExport() {
