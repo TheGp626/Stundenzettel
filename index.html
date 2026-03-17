@@ -181,7 +181,7 @@
       line-height: 1
     }
 
-    /* ── META SECTION (name / week / dept) ── */
+    /* ── META SECTION ── */
     .meta-section {
       padding: 10px 16px 8px;
       flex-shrink: 0
@@ -448,13 +448,7 @@
       font-weight: 600
     }
 
-    .history-page-sub {
-      font-size: 13px;
-      color: var(--text2);
-      margin-top: 2px
-    }
-
-    /* ── FORM ELEMENTS (shift inputs) ── */
+    /* ── FORM ELEMENTS ── */
     .field {
       margin-bottom: 10px
     }
@@ -884,14 +878,13 @@
       touch-action: none
     }
 
-    .sig-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px
-    }
-
-    .sig-actions .btn {
-      margin: 0
+    /* ── MONSTER CAN ICON ── */
+    .monster-icon {
+      height: 20px;
+      width: auto;
+      vertical-align: middle;
+      margin-left: 4px;
+      border-radius: 2px;
     }
   </style>
 </head>
@@ -923,7 +916,6 @@
     <!-- ══════════ ERFASSEN PAGE ══════════ -->
     <div class="page active" id="page-home">
 
-      <!-- Name · KW · Dept -->
       <div class="meta-section">
         <div class="meta-fields">
           <div class="meta-field">
@@ -946,13 +938,11 @@
         </div>
       </div>
 
-      <!-- Week Strip -->
       <div class="week-strip-section">
         <div class="week-strip-header" id="week-strip-label"></div>
         <div class="week-strip" id="week-strip"></div>
       </div>
 
-      <!-- Total chip -->
       <div class="week-total-chip">
         <span class="wtc-label">Gesamtstunden</span>
         <div>
@@ -961,13 +951,10 @@
         </div>
       </div>
 
-      <!-- Day editor (or empty state) -->
       <div class="day-editor-area" id="day-editor-area"></div>
 
-      <!-- Action buttons -->
       <div class="fab-area">
         <button class="btn primary" onclick="saveWeek()">💾 Speichern</button>
-        <button class="btn" onclick="exportPDF()">📄 PDF exportieren</button>
         <button class="btn send" id="btn-send" onclick="sendToBuchhaltung()">📧 Senden</button>
       </div>
 
@@ -984,7 +971,7 @@
       </div>
     </div>
 
-  </div><!-- /.app -->
+  </div>
 
   <div class="toast" id="toast"></div>
 
@@ -1049,8 +1036,17 @@
           <span class="theme-btn-icon" style="font-size: 18px;">🌓</span>
         </button>
       </div>
+      <div class="field" style="margin-top: 24px; border-top: 0.5px solid var(--border); padding-top: 16px;">
+        <label>Exportieren</label>
+        <div style="display: flex; gap: 8px;">
+          <select id="export-type" class="meta-input" style="flex: 1;">
+            <option value="pdf">PDF-Dokument (.pdf)</option>
+          </select>
+          <button class="btn primary" style="flex: 0 0 auto; width: auto; padding: 0 16px;" onclick="handleSettingsExport()">Export</button>
+        </div>
+      </div>
       <div class="sig-actions" style="margin-top: 24px;">
-        <button class="btn primary" onclick="saveSettingsModal()">Speichern</button>
+        <button class="btn primary" onclick="saveSettingsModal()">Schließen</button>
       </div>
     </div>
   </div>
@@ -1066,9 +1062,7 @@
     // ── DATA STORES ──
     var shiftSigCanvases = {};
     var shiftSigData = {};
-    // shiftValues[dayIdx][shiftIdx] = {von, bis, ort, al, pause}
     var shiftValues = {};
-    // shiftCounts[dayIdx] = number of shifts
     var shiftCounts = {};
     var activeDayIdx = null;
 
@@ -1109,7 +1103,7 @@
       var euros = totalHours * hourlyWage;
       if (monsterMode) {
         var cans = Math.floor(euros / MONSTER_PRICE);
-        return '≈ ' + cans + ' 🥤';
+        return '≈ ' + cans + ' <img src="icons/monsta_can.png" class="monster-icon" alt="Monster Can">';
       }
       return '≈ ' + euros.toFixed(2).replace('.', ',') + ' €';
     }
@@ -1665,6 +1659,13 @@
         renderHistory();
       }
       showToast('Einstellungen gespeichert');
+    }
+
+    function handleSettingsExport() {
+      var type = document.getElementById('export-type').value;
+      if (type === 'pdf') {
+        exportPDF();
+      }
     }
 
     // ── COLLECT DATA ──
